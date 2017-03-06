@@ -13,6 +13,8 @@ else
 	exit 1
 fi
 
-mkdir $DIR_NAME
-mv *.iplot.txt $DIR_NAME
-mv *.iplot.dens.txt $DIR_NAME
+mkdir -p $DIR_NAME
+mv *.iplot.txt $DIR_NAME 2> /dev/null
+mv *.iplot.dens.txt $DIR_NAME 2> /dev/null
+
+exit 0 #the script should not fail if there is nothing to move

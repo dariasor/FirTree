@@ -1,9 +1,16 @@
 #!/bin/bash
-# Script for interaction detection
+# Script for fast feature evaluation
 
 SCRIPT=$(readlink -f $0)
 SCRIPTPATH=`dirname $SCRIPT`
 source $SCRIPTPATH/env.config
+
+VERSION=`$BT_TRAIN -version 2> /dev/null | tail -1 | cut -f3 -d ' '`
+if [ -z $VERSION ]
+then
+	echo "Error: Old TreeExtra version. Need TreeExtra version 2.5.1 or higher"
+	exit 1
+fi
 
 if [ $# -eq 4 ]
 then

@@ -14,9 +14,9 @@ for iF=1:numel(files)
     f=fopen(fullfile(folder, fn), 'r');
     s=fgets(f);
     s=fgets(f);
-    var1 = s(8:end);
+    var1 = strtrim(s(8:end));
     s=fgets(f);
-    var2 = s(11:end);
+    var2 = strtrim(s(11:end));
     if index(fn, "chosen") == 1
         legendtxt1 = fgets(f);
         legendtxt2 = fgets(f);

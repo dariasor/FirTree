@@ -77,20 +77,19 @@ public class InteractionTreeLearnerGAMMC{
 	private static String VIS_SPLIT = "";
 	
 	static class Options {
-		@Argument(name = "-p", description = "ag code prefix", required = true)
-
+		@Argument(name = "-p", description = "env.config directory", required = true)
 		String prefix = null;
 		
-		@Argument(name = "-d", description = "working directory path", required = true)
+		@Argument(name = "-d", description = "working directory", required = true)
 		String dir = "";
 		
-		@Argument(name = "-r", description = "attribute file path", required = true)
+		@Argument(name = "-r", description = "attribute file", required = true)
 		String attPath = "";
 		
-		@Argument(name = "-t", description = "training set path", required = true)
+		@Argument(name = "-t", description = "training set", required = true)
 		String trainPath = "";
 		
-		@Argument(name = "-o", description = "output model path", required = true)
+		@Argument(name = "-o", description = "output tree structure file", required = true)
 		String outputPath = "";
 		
 		@Argument(name = "-a", description = "alpha (default: 0.0, full tree)")
@@ -126,16 +125,36 @@ public class InteractionTreeLearnerGAMMC{
 		}
 		Random.getInstance().setSeed(0);
 
-		
+		File binDir = new File(opts.prefix);
+		if (!binDir.exists()) {
+			System.out.println("Error: the config directory " + opts.prefix + " does not exist.");
+			System.exit(1);
+		}
+		File cfgFile = new File(opts.prefix + "/env.config");
+		if (!cfgFile.exists()) {
+			System.out.println("Error: the config file " + opts.prefix + "/env.config does not exist. Wrong config directory?");
+			System.exit(1);
+		}
+			
 		File dir = new File(opts.dir);
 		if (!dir.exists()) {
-			System.out.println("Error: working directory " + opts.dir + " does not exist.");
+			System.out.println("Error: the working directory " + opts.dir + " does not exist.");
 			System.exit(1);
 		}		
 	
 		File attrFile = new File(opts.attPath);
 		if (!attrFile.exists()) {
 			System.out.println("Error: the attribute file " + opts.attPath + " does not exist.");
+			System.exit(1);
+		}
+		
+		File outFile = new File(opts.outputPath);
+		if (!outFile.exists()) {
+			System.out.println("Error: the output file " + opts.outputPath + " does not exist.");
+			System.exit(1);
+		}
+		if (!outFile.isFile()) {
+			System.out.println("Error: the output file " + opts.outputPath + " is not a regular file.");
 			System.exit(1);
 		}
 			
@@ -322,7 +341,7 @@ public class InteractionTreeLearnerGAMMC{
 
  		FileSystem fs = FileSystems.getDefault();
 
-		// 1. Create datasets for ag
+		// 1. Create datasets
 		// 1.1. Create datasets for ag
  		
  		timeStamp("Prepare train and test data for AG.");
@@ -350,15 +369,15 @@ public class InteractionTreeLearnerGAMMC{
 			return new InteractionTreeLeaf();
 		}
 
-		// 1.2. Create attr file for ag
-		// 4.1 Split dataset 
-		timeStamp("Prepare dateset for ordinary feature selection.");
+		// 1.2 Create datasets for bt and gam 
+		timeStamp("Prepare train and test data for BT and GAM.");
 		train_size =  Math.min(data_size * 0.6667, 200000);
 		valid_size =  Math.min(data_size - train_size, 500000);
 		portion_train = train_size / (double) data_size;
 		portion_valid = valid_size / (double) data_size;
 		runProcess(dir, RND, dtaAG, "ltr", portion_valid + "", portion_train + "", opts.group + "");
 
+		// 2. Fast feature selection
 		timeStamp("Select 15 features for AG.");
 		// Here ltr.attr -> ltr.fs.attr
 		runProcess(dir, BT, attr, train, valid, "-k 15 -b 300 -a 0.01 -c roc"); 
@@ -370,7 +389,7 @@ public class InteractionTreeLearnerGAMMC{
 		Files.copy(fsLogSrc, fsLogDst, StandardCopyOption.REPLACE_EXISTING);
 		Files.copy(fsModelSrc, fsModelDst, StandardCopyOption.REPLACE_EXISTING);
 
-		// 2. Run ag and get interactions
+		// 3. Run ag and get interactions
 		timeStamp("Run AG with selected features and small train set.");
 		runProcess(dir, AG, attrfs, attrfsfs, trainAG, validAG);
 		// Backup log and model
@@ -381,7 +400,7 @@ public class InteractionTreeLearnerGAMMC{
 		Files.copy(agLogSrc, agLogDst, StandardCopyOption.REPLACE_EXISTING);
 		Files.copy(agModelSrc, agModelDst, StandardCopyOption.REPLACE_EXISTING);
 
-		// 3. Choose candidates
+		// 4. Choose candidates
 		String interactionGraph = tmpDir + File.separator + "list.txt";
 		List<String> featureCandidates = getCandidates(interactionGraph, opts.wThreshold);
 		
@@ -392,19 +411,16 @@ public class InteractionTreeLearnerGAMMC{
 		out.flush();
 		out.close();
 
-		// 4. Generate plots
-
+		// 5. Build a GAM for parent
  		Instances trainSet = InstancesReader.read(ainfo, train, "\t+", true);
 		Instances validSet = InstancesReader.read(ainfo, valid, "\t+", true);
-
-		// 4.2. Build a GAM for parent
 		timeStamp("Build a GAM for the parent node.");
 		GAMLearner learner = new GAMLearner();
 		learner.setMetric(new AUC());
 		learner.setLearningRate(0.01);
 		learner.setBaggingIters(0);
-		//4.2a Create a copy of data with zeros instead of NaNs
 		
+		//Create a copy of data with zeros instead of NaNs		
 		Instances trainGAM = trainSet.copy();
 		Instances validGAM = validSet.copy();
 		int attrN = ainfo.attributes.size();
@@ -417,7 +433,6 @@ public class InteractionTreeLearnerGAMMC{
 				if(Double.isNaN(instance.getValue(a)))
 					instance.setValue(a, 0);
 		
-		//GAM gam = learner.buildClassifier(trainGAM, validGAM, 10000 / ainfo.attributes.size(), 3);
 		GAM gam = learner.buildClassifier(trainGAM, validGAM, 100, 3);
 		double[] targetsValid = new double[validGAM.size()];
 		double[] predsValid = new double[validGAM.size()];
@@ -436,11 +451,10 @@ public class InteractionTreeLearnerGAMMC{
 		out.close();
 		
 
+		//6. Plots
 		timeStamp("Visualization.");
 
 		// Here current model.bin is produced by AG. No need to run additional scripts.
-		// 4.3 Visualize 
-		// 4.3.0 Visualization by AG
 		for (String feat : featureCandidates) {
 			runProcess(dir, VIS_EFFECT, attr, train, feat);
 		}
@@ -477,14 +491,14 @@ public class InteractionTreeLearnerGAMMC{
 		visLogDst = fs.getPath(tmpDir + File.separator + "BT_PLOTS/log_vis.txt");
 		Files.copy(visLogSrc, visLogDst, StandardCopyOption.REPLACE_EXISTING);
 
-		// 5. Read features
+		// 7. Read features info: get quantiles from the effect plots
 		List<Feature> features = new ArrayList<>();
 		for (String key : featureCandidates) {
 			Feature feature = Feature.read(tmpDir + File.separator + key + ".effect.txt");
 			features.add(feature);
 		}
 
-		// 6. Evaluate splits
+		// 8. Evaluate splits with GAMs
 		timeStamp("Evaluate splits.");
 		int bestAtt = -1;
 		double bestSplit = -1;
@@ -497,8 +511,8 @@ public class InteractionTreeLearnerGAMMC{
 			for (int j = 0; j < split.splits.length; j++) {
 				
 				double splitPoint = (split.feature.centers[j] + split.feature.centers[j + 1]) / 2;
-				timeStamp("Split dataset for feature #"+i+" split #"+j+".");
-				// 6.1 Split the dataset
+				timeStamp("Split dataset for feature #" + i + " split #" + j + ".");
+				// 8.1 Split the dataset
 				Instances trainLeft = new Instances(ainfo);
 				Instances trainRight = new Instances(ainfo);
 				split(trainSet, attIndex, splitPoint, trainLeft, trainRight);
@@ -507,12 +521,12 @@ public class InteractionTreeLearnerGAMMC{
 				Instances validRight = new Instances(ainfo);
 				split(validSet, attIndex, splitPoint, validLeft, validRight);
 				timeStamp("Build and evaluate the split of feature #"+i+" split #"+j+".");
-				// 6.2 Build GAMMC and evaluate this split
+				// 8.2 Build GAMMC and evaluate this split
 				Instances trainLeftGAM = trainLeft.copy();
 				Instances validLeftGAM = validLeft.copy();				
 				Instances trainRightGAM = trainRight.copy();
 				Instances validRightGAM = validRight.copy();				
-				//6.2.0 Replace missing values with zeros
+				//8.2.0 Replace missing values with zeros
 				timeStamp("Scan NaNs.");
 				for(Instance instance : trainLeftGAM)
 					for(int a = 0; a < attrN; a++)
@@ -567,7 +581,7 @@ public class InteractionTreeLearnerGAMMC{
 			
 		}
 	
-	
+		//9. Final output: best split and its visualization
 		if (bestAtt >= 0) {
 			sb.append("Best ROC: " + bestROC + "\n");
 			if (bestROC > rocParent) {
@@ -615,13 +629,20 @@ public class InteractionTreeLearnerGAMMC{
 		Process intProcess = pb.start();
 		InputStreamReader isr = new InputStreamReader(intProcess.getInputStream());
 		BufferedReader br = new BufferedReader(isr);
-		intProcess.waitFor();
+		
+		int exitValue = intProcess.waitFor();
+		
 		String str = br.readLine();
 		while (str != null) {
 			System.out.println(str);
 			str = br.readLine();
 		}
 		br.close();
+		
+		if (exitValue != 0) {
+			System.exit(exitValue);
+		}
+		
 	}
 	
 	protected List<String> readAttrs(String attr) throws Exception {

@@ -19,7 +19,7 @@ data = lines[count + 5].strip().split(" = ")
 alpha = data[1]
 
 d = {}
-cflag = {}  # flags for converence
+cflag = {}  # flags for convergence
 
 f = open(sys.argv[2], 'r')
 pLines = f.readlines()
@@ -57,24 +57,24 @@ for i in range(len(colnames)):
 	for j in range(len(rownames)):
 		overfitting[colnames[i]][rownames[j]] = False
 		if i > 0:
-			if (overfitting[colnames[i-1]][rownames[j]]) or (d[colnames[i]][rownames[j]] < d[colnames[i-1]][rownames[j]]):
+			if (overfitting[colnames[i-1]][rownames[j]]) or (d[colnames[i]][rownames[j]] > d[colnames[i-1]][rownames[j]]):
 				overfitting[colnames[i]][rownames[j]] = True
 		if j > 0:
-			if (overfitting[colnames[i]][rownames[j-1]]) or (d[colnames[i]][rownames[j]] < d[colnames[i]][rownames[j-1]]):
+			if (overfitting[colnames[i]][rownames[j-1]]) or (d[colnames[i]][rownames[j]] > d[colnames[i]][rownames[j-1]]):
 				overfitting[colnames[i]][rownames[j]] = True
 for i in colnames:
 	for j in rownames:
 		if overfitting[i][j]:
-			d[i][j] = 0   # set overfitting values to 0 to avoid selection
+			d[i][j] = 1   # set overfitting values to 1 to avoid selection (assuming targets are between 0 and 1, so RMS always < 1)
 
-bestROC6 = max(d['6'].values())
-bestROC8 = max(d['8'].values())
+bestRMS6 = min(d['6'].values())
+bestRMS8 = min(d['8'].values())
 if n >= 16:   # if recommended n is greater than 16, set n = 16
-	bestROC16 = max(d['16'].values())
+	bestRMS16 = min(d['16'].values())
 	d16 = d['16']
 	bestAlpha = None
 	for key in d16:
-		if d16[key] == bestROC16:
+		if d16[key] == bestRMS16:
 			bestAlpha = key
 			break
 	print cflag['16'][bestAlpha]   # print if convergent
@@ -82,20 +82,20 @@ if n >= 16:   # if recommended n is greater than 16, set n = 16
 elif n >= 8:  # if recommended n is between 8 and 16, select itself
 	print cflag[str(n)][alpha]
 	print "-a " + alpha + " -n " + str(n)
-elif (bestROC8 >= bestROC6 - 0.001) and (bestROC8 > 0):  # if recommended n is too small, choose n = either 6 or 8
+elif (bestRMS8 <= bestRMS6 + 0.001) and (bestRMS8 < 1):  # if recommended n is too small, choose n = either 6 or 8
 	d8 = d['8']
 	bestAlpha = None
 	for key in d8:
-		if d8[key] == bestROC8:
+		if d8[key] == bestRMS8:
 			bestAlpha = key
 			break
 	print cflag['8'][bestAlpha]
 	print "-a " + bestAlpha + " -n 8"
-elif bestROC6 > 0:  # 
+elif bestRMS6 < 1:  # 
 	d6 = d['6']
 	bestAlpha = None
 	for key in d6:
-		if d6[key] == bestROC6:
+		if d6[key] == bestRMS6:
 			bestAlpha = key
 			break
 	print cflag['6'][bestAlpha]

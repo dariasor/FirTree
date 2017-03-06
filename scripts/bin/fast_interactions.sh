@@ -25,7 +25,7 @@ PARSE_INTERACTIONS=$PYTHON_BIN/parse_interactions.py
 GET_BEST_PARAMS=$PYTHON_BIN/get_best_params.py
 GET_B=$PYTHON_BIN/get_b.py
 
-$AG_TRAIN -t $TRAIN_FILE -v $VALID_FILE -r $ATTR_FILE -s layered -c roc > /dev/null
+$AG_TRAIN -t $TRAIN_FILE -v $VALID_FILE -r $ATTR_FILE -s layered > /dev/null
 
 while :
 do
@@ -58,12 +58,12 @@ done
 $PYTHON $PARSE_PARAMS log.txt > params_fs.txt
 PARAMS_FS=`tail -1 params_fs.txt`
 
-$AG_FS -t $TRAIN_FILE -v $VALID_FILE -r $ATTR_FILE -c roc $PARAMS_FS > /dev/null
+$AG_FS -t $TRAIN_FILE -v $VALID_FILE -r $ATTR_FILE $PARAMS_FS > /dev/null
 
 $PYTHON $PARSE_PERFORMANCE log.txt > params_interaction.txt
 PARAMS_INTERACTION=`tail -1 params_interaction.txt`
 
-$AG_INTERACTIONS -t $TRAIN_FILE -v $VALID_FILE -r $ATTR_FS_FILE $PARAMS_FS -c roc $PARAMS_INTERACTION > /dev/null
+$AG_INTERACTIONS -t $TRAIN_FILE -v $VALID_FILE -r $ATTR_FS_FILE $PARAMS_FS $PARAMS_INTERACTION > /dev/null
 
 $PYTHON $PARSE_INTERACTIONS log.txt > list.txt
 

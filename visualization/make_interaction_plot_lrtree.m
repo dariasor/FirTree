@@ -1,5 +1,5 @@
 
-function make_interaction_plot(xvalues, xcounts, yvalues, ycounts, values, density, xlabelstr, plot_title, legendtxt = [])
+function make_interaction_plot_lrtree(xvalues, xcounts, yvalues, ycounts, values, density, xlabelstr, plot_title, legendtxt = [])
 
 clf
 hold on
