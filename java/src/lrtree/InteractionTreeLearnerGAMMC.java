@@ -149,11 +149,7 @@ public class InteractionTreeLearnerGAMMC{
 		}
 		
 		File outFile = new File(opts.outputPath);
-		if (!outFile.exists()) {
-			System.out.println("Error: the output file " + opts.outputPath + " does not exist.");
-			System.exit(1);
-		}
-		if (!outFile.isFile()) {
+		if (outFile.exists() && !outFile.isFile()) {
 			System.out.println("Error: the output file " + opts.outputPath + " is not a regular file.");
 			System.exit(1);
 		}
