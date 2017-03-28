@@ -1,5 +1,6 @@
 import sys
 import os
+import math
 # usage: parse_iplot dir split_attr split_val 
 
 path = sys.argv[1] + "/"
@@ -39,6 +40,8 @@ for file in os.listdir(path):
 			dens.append(rawDens[i].split("\t")[1:])
 		for i in range(len(data)):
 			for j in range(len(data[i])):
+				if(data[i][j].strip() == "?"):
+					data[i][j] = "Inf"
 				data[i][j] = float(data[i][j])
 		for i in range(len(dens)):	
 			for j in range(len(dens[i])):
@@ -118,7 +121,10 @@ for file in os.listdir(path):
 				for j in range(len(dataOut[i])):
 					if j>0:
 						fout.write("\t")
-					fout.write(str(dataOut[i][j]))
+					if(math.isinf(dataOut[i][j])):
+						fout.write("?")
+					else:
+						fout.write(str(dataOut[i][j]))
 				fout.write("\n")
 
 		with open(path + fileDensOut, "w") as fout:
