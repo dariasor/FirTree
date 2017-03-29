@@ -56,14 +56,11 @@ for file in os.listdir(path):
 		fileOut = "chosen." + titleRow + "." + titleCol + ".iplot.txt"
 		fileDensOut = "chosen." + titleRow + "." + titleCol + ".iplot.dens.txt"
 		
-		tmpSum = 0
-		for i in range(len(dens)):   # should be just 2 lines
-			tmpSum = sum(dens[i])
+		densRow = []
+		for i in range(len(dens)):   
+			densRow.append(sum(dens[i]) / len(dens[i]))
 			for j in range(len(dens[i])):
-				dens[i][j] = tmpSum/len(dens[i])
-		for i in range(len(dens)):
-			for j in range(len(dens[i])):
-				data[i+2][j+2] = data[i+2][j+2] * dens[i][j]
+				data[i+2][j+2] = data[i+2][j+2] * densRow[i]
 
 		# find the row that represents the splits
 		label = 0
@@ -75,6 +72,7 @@ for file in os.listdir(path):
 		# deal with the values
 		dataOut = []
 		densOut = []
+		densRowOut = []
 		dataOut.append(data[0])
 		dataOut.append(data[1])
 
@@ -93,20 +91,24 @@ for file in os.listdir(path):
 
 		# deal with the density
 		densOut.append(dens[0])
+		densRowOut.append(densRow[0])
 		for i in range(1, label):
+			densRowOut[0] += densRow[i];
 			for j in range(len(dens[i])):
 				densOut[0][j] += dens[i][j]
 
 		densOut.append(dens[label])
+		densRowOut.append(densRow[label])
 		for i in range(label+1, len(dens)):
+			densRowOut[1] += densRow[i];
 			for j in range(len(dens[i])):
 				densOut[1][j] += dens[i][j]
 
 		# normaize
 		for i in range(len(densOut)):
-			for j in range(len(densOut[i])):
-				if densOut[i][j]>0:
-					dataOut[i+2][j+2] /= densOut[i][j]
+			if densRowOut[i]>0:
+				for j in range(len(densOut[i])):
+					dataOut[i+2][j+2] /= densRowOut[i]
 
 		# print
 		with open(path + fileOut, "w") as fout:
