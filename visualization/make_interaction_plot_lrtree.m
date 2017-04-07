@@ -25,7 +25,6 @@ if hasMV
 	xvalues(n) = xvalues(n-1) + mv_off;	
 end
 for iY = 1:numel(yvalues)
-    %lw = iY*lw_scale+lw_offset;
     lw = iY*lw_scale+lw_offset;
     lc = iY*lc_scale+lc_offset;
     handles(iY) = plot(xvalues(1:m), values(iY,1:m),'LineWidth',lw,'Color',lc,'LineStyle', ly{mod(iY, 4)+1});

@@ -374,9 +374,9 @@ public class InteractionTreeLearnerGAMMC{
 		runProcess(dir, RND, dtaAG, "ltr", portion_valid + "", portion_train + "", opts.group + "");
 
 		// 2. Fast feature selection
-		timeStamp("Select 15 features for AG.");
+		timeStamp("Select 12 features for AG.");
 		// Here ltr.attr -> ltr.fs.attr
-		runProcess(dir, BT, attr, train, valid, "-k 15 -b 300 -a 0.01 -c roc"); 
+		runProcess(dir, BT, attr, train, valid, "-k 12 -b 300 -a 0.01 -c roc"); 
 		
 		Path fsLogSrc = fs.getPath(tmpDir + File.separator + "log.txt");
 		Path fsLogDst = fs.getPath(tmpDir + File.separator + "log_fs.txt");
