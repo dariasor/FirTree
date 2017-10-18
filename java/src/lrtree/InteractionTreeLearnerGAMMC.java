@@ -584,7 +584,7 @@ public class InteractionTreeLearnerGAMMC{
 				sb.append("Best feature: " + ainfo.attributes.get(bestAtt).getName() + "\n");
 				sb.append("Best split: " + bestSplit + "\n");
 				// Visualize the splits
-				runProcess(dir, VIS_SPLIT, "AG_PLOTS", ainfo.attributes.get(bestAtt).getName(), bestSplit+"");
+				//runProcess(dir, VIS_SPLIT, "AG_PLOTS", ainfo.attributes.get(bestAtt).getName(), bestSplit+"");
 				runProcess(dir, VIS_SPLIT, "BT_PLOTS", ainfo.attributes.get(bestAtt).getName(), bestSplit+"");
 			}
 			else {
