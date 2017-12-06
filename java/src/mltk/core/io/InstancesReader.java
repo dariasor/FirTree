@@ -169,7 +169,7 @@ public class InstancesReader {
 					vector[i] = Double.parseDouble(data[col]); 
 				}
 			} catch(java.lang.NumberFormatException e) {
-				System.out.println("Error: The column for a numeric attribute " + ainfo.attributes.get(i).getName() + " contains a text value " + data[col]);
+				System.out.println("Error: The column for an active attribute " + ainfo.attributes.get(i).getName() + " contains a text value " + data[col]);
 				System.exit(1);
 			}
 		}

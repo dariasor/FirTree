@@ -386,7 +386,7 @@ public class InteractionTreeLearnerGAMMC{
 		Files.copy(fsModelSrc, fsModelDst, StandardCopyOption.REPLACE_EXISTING);
 
 		// 3. Run ag and get interactions
-		timeStamp("Run AG with selected features and small train set.");
+		timeStamp("Run AG with selected features on the small train set.");
 		runProcess(dir, AG, attrfs, attrfsfs, trainAG, validAG);
 		// Backup log and model
 		Path agLogSrc = fs.getPath(tmpDir + File.separator + "log.txt");
