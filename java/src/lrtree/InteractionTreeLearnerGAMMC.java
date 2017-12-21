@@ -162,7 +162,7 @@ public class InteractionTreeLearnerGAMMC{
 		RND = opts.prefix + "rnd.sh";
 		VIS_MV = opts.prefix + "vis_mv.sh";
 		VIS_SPLIT = opts.prefix + "vis_split.sh";
-		tempDir = opts.dir + File.separator + "tmp";
+		tempDir = opts.dir + File.separator + "Node";
 	
 		File root = new File(tempDir + "_Root");
 		if (!root.exists()) {
@@ -386,7 +386,7 @@ public class InteractionTreeLearnerGAMMC{
 		Files.copy(fsModelSrc, fsModelDst, StandardCopyOption.REPLACE_EXISTING);
 
 		// 3. Run ag and get interactions
-		timeStamp("Run AG with selected features and small train set.");
+		timeStamp("Run AG with selected features on the small train set.");
 		runProcess(dir, AG, attrfs, attrfsfs, trainAG, validAG);
 		// Backup log and model
 		Path agLogSrc = fs.getPath(tmpDir + File.separator + "log.txt");
@@ -398,7 +398,9 @@ public class InteractionTreeLearnerGAMMC{
 
 		// 4. Choose candidates
 		String interactionGraph = tmpDir + File.separator + "list.txt";
-		List<String> featureCandidates = getCandidates(interactionGraph, opts.wThreshold);
+		Pair<List<String>, Boolean> gcret = getCandidates(interactionGraph, opts.wThreshold);
+		List<String> featureCandidates = gcret.v1;
+		boolean weakOnly = gcret.v2; 
 		
 		PrintWriter out = new PrintWriter(tmpDir + File.separator + "candidates.txt");
 		for (String name : featureCandidates) {
@@ -452,11 +454,11 @@ public class InteractionTreeLearnerGAMMC{
 
 		// Here current model.bin is produced by AG. No need to run additional scripts.
 		for (String feat : featureCandidates) {
-			runProcess(dir, VIS_EFFECT, attr, train, feat);
+			runProcess(dir, VIS_EFFECT, attr, train, feat, "ag");
 		}
 		List<Pair<String, String>> pairs = getCandidates(interactionGraph);
 		for (Pair<String, String> pair : pairs) {
-			runProcess(dir, VIS_IPLOT, attr, train, pair.v1, pair.v2);
+			runProcess(dir, VIS_IPLOT, attr, train, pair.v1, pair.v2, "ag");
 		}
 		runProcess(dir, VIS_MV, "AG_PLOTS");
 		// Backup visualization log
@@ -464,23 +466,9 @@ public class InteractionTreeLearnerGAMMC{
 		Path visLogDst = fs.getPath(tmpDir + File.separator + "AG_PLOTS/log_vis.txt");
 		Files.copy(visLogSrc, visLogDst, StandardCopyOption.REPLACE_EXISTING);
 
-		// Here we build a full model. Backup bagged tree.
-		runProcess(dir, BT, attrfs, train, valid, "-b 300 -a 0.01 -c roc");    
-		Path btLogSrc = fs.getPath(tmpDir + File.separator + "log.txt");
-		Path btLogDst = fs.getPath(tmpDir + File.separator + "log_bt.txt");
-		Path btModelSrc = fs.getPath(tmpDir + File.separator + "model.bin");
-		Path btModelDst = fs.getPath(tmpDir + File.separator + "model_bt.bin");
-		Files.copy(btLogSrc, btLogDst, StandardCopyOption.REPLACE_EXISTING);
-		Files.copy(btModelSrc, btModelDst, StandardCopyOption.REPLACE_EXISTING);
-
-		// Run visualization again.
-		for (String feat : featureCandidates) {
-			runProcess(dir, VIS_EFFECT, attr, train, feat);
-		}
-		for (Pair<String, String> pair : pairs) {
-			runProcess(dir, VIS_IPLOT, attr, train, pair.v1, pair.v2);
-		}
-
+		visBT(dir, attrfs, train, valid, tmpDir, featureCandidates, pairs, attr, "v1");
+		visBT(dir, attrfs, valid, train, tmpDir, featureCandidates, pairs, attr, "v2");
+	
 		// Backup log and plot files.
 		runProcess(dir, VIS_MV, "BT_PLOTS");
 		visLogSrc = fs.getPath(tmpDir + File.separator + "log.txt");
@@ -583,6 +571,8 @@ public class InteractionTreeLearnerGAMMC{
 			if (bestROC > rocParent) {
 				sb.append("Best feature: " + ainfo.attributes.get(bestAtt).getName() + "\n");
 				sb.append("Best split: " + bestSplit + "\n");
+				if(weakOnly)
+					sb.append("Weak interactions only.\n");
 				// Visualize the splits
 				//runProcess(dir, VIS_SPLIT, "AG_PLOTS", ainfo.attributes.get(bestAtt).getName(), bestSplit+"");
 				runProcess(dir, VIS_SPLIT, "BT_PLOTS", ainfo.attributes.get(bestAtt).getName(), bestSplit+"");
@@ -600,6 +590,28 @@ public class InteractionTreeLearnerGAMMC{
 		System.out.println(sb);
 		return new InteractionTreeInteriorNode(bestAtt, bestSplit);
 		
+	}
+	
+	private void visBT( File dir, String attrfs, String train, String valid, String tmpDir, 
+						List<String> featureCandidates, List<Pair<String, String>> pairs, String attr, String suffix
+					  ) throws Exception{
+		// Here we build a full model. Backup bagged tree.
+		runProcess(dir, BT, attrfs, train, valid, "-b 300 -a 0.01 -c roc");
+		FileSystem fs = FileSystems.getDefault();
+		Path btLogSrc = fs.getPath(tmpDir + File.separator + "log.txt");
+		Path btLogDst = fs.getPath(tmpDir + File.separator + "log_bt." + suffix + ".txt");
+		Path btModelSrc = fs.getPath(tmpDir + File.separator + "model.bin");
+		Path btModelDst = fs.getPath(tmpDir + File.separator + "model_bt." + suffix + ".bin");
+		Files.copy(btLogSrc, btLogDst, StandardCopyOption.REPLACE_EXISTING);
+		Files.copy(btModelSrc, btModelDst, StandardCopyOption.REPLACE_EXISTING);
+
+		// Run visualization again.
+		for (String feat : featureCandidates) {
+			runProcess(dir, VIS_EFFECT, attr, train, feat, suffix);
+		}
+		for (Pair<String, String> pair : pairs) {
+			runProcess(dir, VIS_IPLOT, attr, train, pair.v1, pair.v2, suffix);
+		}		
 	}
 	
 	protected static void readPredicts(String path, List<Double> preds) throws Exception {
@@ -680,7 +692,7 @@ public class InteractionTreeLearnerGAMMC{
 		return candidates;
 	}
 	
-	protected static List<String> getCandidates(String interactionGraph, double wThreshold) 
+	protected static Pair<List<String>, Boolean> getCandidates(String interactionGraph, double wThreshold) 
 			throws Exception {
 		List<String> candidates = new ArrayList<>();
 		Map<String, Map<String, Double>> graph = new HashMap<>();
@@ -717,25 +729,32 @@ public class InteractionTreeLearnerGAMMC{
 
 		for (String node : graph.keySet()) {
 			Map<String, Double> adjList = graph.get(node);
-			int weakN = 0;
+//			int weakN = 0;
 			for (double w : adjList.values()) {
 				if(w >= wThreshold) {
 					strongCands.add(node);
 				}
 				if(w >= 3) {
-					weakN++;
+//					weakN++;
+					weakCands.add(node);
 				}
 			}
-			if(weakN >= 3) {
+/*			if(weakN >= 3) {
 				weakCands.add(node);
 			}
-		}
+*/		}
 		
+		boolean weakOnly = false;
 		Set<String> supCandidates;
 		if (strongCands.size() > 0)
+		{
 			supCandidates = strongCands;
+		}
 		else
+		{
 			supCandidates = weakCands;
+			weakOnly = true;
+		}
 		
 		while (graph.size() > 0 && supCandidates.size() > 0 && candidates.size() < 3) {
 			double maxWSum = -1;
@@ -762,8 +781,8 @@ public class InteractionTreeLearnerGAMMC{
 			}
 			graph.remove(bestNode);
 		}
-		
-		return candidates;
+
+		return new Pair<List<String>, Boolean> (candidates, weakOnly);
 	}
 	
 }

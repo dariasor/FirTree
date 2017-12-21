@@ -22,6 +22,7 @@ for file in os.listdir(path):
 	if (not file.startswith("chosen")) and file.endswith(".iplot.txt") and (splitAttr in file):
 		fileName, fileExtension = os.path.splitext(file)
 		fileDens = fileName + '.dens.txt'
+		suffix = fileName.split(".")[2]
 
 		with open(path + file, "r") as fin:
 			rawData = fin.readlines()
@@ -46,15 +47,12 @@ for file in os.listdir(path):
 		for i in range(len(dens)):	
 			for j in range(len(dens[i])):
 				dens[i][j] = float(dens[i][j])
-		# print titleCol, " v.s. " , splitAttr
 		if(titleCol == splitAttr): 
-			# data = np.transpose(data)
-			# dens = np.transpose(dens)
 			data = transpose2D(data)
 			dens = transpose2D(dens)
 			titleCol, titleRow = titleRow, titleCol
-		fileOut = "chosen." + titleRow + "." + titleCol + ".iplot.txt"
-		fileDensOut = "chosen." + titleRow + "." + titleCol + ".iplot.dens.txt"
+		fileOut = "chosen." + titleRow + "." + titleCol + "." + suffix + ".iplot.txt"
+		fileDensOut = "chosen." + titleRow + "." + titleCol + "." + suffix + ".iplot.dens.txt"
 		
 		densRow = []
 		for i in range(len(dens)):   
