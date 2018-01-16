@@ -1,16 +1,11 @@
-# Default ignore patterns for git for Search Experience.
+# Default ignore patterns for git
 #
 # Patterns starting with a slash match absolute paths (starting at the root of the repository).
 #
-# If you change the location of this file, please update the wiki page:
-# https://w.amazon.com/index.php/SearchExperience/Dev/GitIgnore
-#
-# To copy this file to your package, you can run:
-# $ git archive --remote=ssh://git.amazon.com:2222/pkg/SearchExperienceJavaBuildTools HEAD configuration/templates/gitignore | tar --extract --to-stdout > .gitignore
 
 # Eclipse
-.project
-.classpath
+#.project
+#.classpath
 .externalToolBuilders/
 .settings/
 eclipse*/
