@@ -152,9 +152,14 @@ public class InstancesReader {
 	 * @return a dense instance from strings.
 	 */
 	private static Instance parseDenseInstance(String[] data, AttrInfo ainfo, boolean allowMV) {
-		double[] vector = new double[ainfo.columns.size()];
+		double[] vector = new double[ainfo.attributes.size()];
 		for (int i = 0; i < vector.length; i++) {
-			int col = ainfo.columns.get(i);
+			int col = ainfo.attributes.get(i).getColumn();
+			if (col >= data.length)
+			{
+				System.err.println("Error: There are more attributes in the attribute file than columns in the data.");
+				System.exit(1);
+			}
 			try {
 				if(allowMV) {
 					vector[i] = data[col].equals("?") ?
@@ -163,19 +168,19 @@ public class InstancesReader {
 				} else {
 					if(data[col].equals("?"))
 					{
-						System.out.println("Missing values are not allowed.\n");
+						System.err.println("Error: Missing values are not allowed.\n");
 						System.exit(1);
 					}
 					vector[i] = Double.parseDouble(data[col]); 
 				}
 			} catch(java.lang.NumberFormatException e) {
-				System.out.println("Error: The column for an active attribute " + ainfo.attributes.get(i).getName() + " contains a text value " + data[col]);
+				System.err.println("Error: The column for an active attribute " + ainfo.attributes.get(i).getName() + " contains a text value " + data[col]);
 				System.exit(1);
 			}
 		}
-		double classValue = (ainfo.clsAttr.getIndex() < 0) ? 
+		double classValue = (ainfo.clsAttr.getColumn() < 0) ? 
 							Double.NaN : 
-							Double.parseDouble(data[ainfo.clsAttr.getIndex()]);
+							Double.parseDouble(data[ainfo.clsAttr.getColumn()]);
 		return new Instance(vector, classValue);
 	}
 	

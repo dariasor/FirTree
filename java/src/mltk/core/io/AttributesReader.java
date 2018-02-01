@@ -56,6 +56,7 @@ public class AttributesReader {
 				break;
 			}
 			String aname = line.split(": ")[0];
+			ainfo.nameToCol.put(aname, col);
 			if(neverNames.contains(aname)) {
 				i--;
 				continue;
@@ -68,15 +69,16 @@ public class AttributesReader {
 			} else {
 				att = NumericalAttribute.parse(line);
 			}
+			att.setColumn(col);
 			if (line.indexOf("(class)") != -1) {
-				att.setIndex(col);
+				att.setIndex(-1);
 				ainfo.clsAttr = att;
 				i--;
 			} else {
 				att.setIndex(i);
 				ainfo.attributes.add(att);
-				ainfo.columns.add(col);
 			}
+			ainfo.nameToId.put(aname, att.getIndex());
 		}
 		br2.close();
 

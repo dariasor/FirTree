@@ -35,6 +35,7 @@ import mltk.util.Queue;
 import mltk.util.Random;
 import mltk.util.tuple.Pair;
 import mltk.util.tuple.IntPair;
+import mltk.util.tuple.Triple;
 
 
 public class InteractionTreeLearnerGAMMC{
@@ -89,7 +90,7 @@ public class InteractionTreeLearnerGAMMC{
 		@Argument(name = "-t", description = "training set", required = true)
 		String trainPath = "";
 		
-		@Argument(name = "-o", description = "output tree structure file", required = true)
+		@Argument(name = "-o", description = "output tree structure file")
 		String outputPath = "";
 		
 		@Argument(name = "-a", description = "alpha (default: 0.0, full tree)")
@@ -101,8 +102,8 @@ public class InteractionTreeLearnerGAMMC{
 		@Argument(name = "-w", description = "strong interaction threshold (default: 7)")
 		double wThreshold = 7;
 		
-		@Argument(name = "-g", description = "column with the group id (default: 0, no grouping)")
-		int group = 0;
+		@Argument(name = "-g", description = "name of the attribute with the group id (default: \"\")")
+		String group = "None";
 		
 	}
 	
@@ -127,30 +128,33 @@ public class InteractionTreeLearnerGAMMC{
 
 		File binDir = new File(opts.prefix);
 		if (!binDir.exists()) {
-			System.out.println("Error: the config directory " + opts.prefix + " does not exist.");
+			System.err.println("Error: the config directory " + opts.prefix + " does not exist.");
 			System.exit(1);
 		}
 		File cfgFile = new File(opts.prefix + "/env.config");
 		if (!cfgFile.exists()) {
-			System.out.println("Error: the config file " + opts.prefix + "/env.config does not exist. Wrong config directory?");
+			System.err.println("Error: the config file " + opts.prefix + "/env.config does not exist. Wrong config directory?");
 			System.exit(1);
 		}
 			
 		File dir = new File(opts.dir);
 		if (!dir.exists()) {
-			System.out.println("Error: the working directory " + opts.dir + " does not exist.");
+			System.err.println("Error: the working directory " + opts.dir + " does not exist.");
 			System.exit(1);
 		}		
-	
+
 		File attrFile = new File(opts.attPath);
 		if (!attrFile.exists()) {
-			System.out.println("Error: the attribute file " + opts.attPath + " does not exist.");
+			System.err.println("Error: the attribute file " + opts.attPath + " does not exist.");
 			System.exit(1);
 		}
-		
+
+		if(opts.outputPath.isEmpty())
+			opts.outputPath = opts.dir + "/tree.txt";
 		File outFile = new File(opts.outputPath);
+		
 		if (outFile.exists() && !outFile.isFile()) {
-			System.out.println("Error: the output file " + opts.outputPath + " is not a regular file.");
+			System.err.println("Error: the output file " + opts.outputPath + " is not a regular file.");
 			System.exit(1);
 		}
 			
@@ -169,22 +173,23 @@ public class InteractionTreeLearnerGAMMC{
 			root.mkdir();
 		}
  		FileSystem fs = FileSystems.getDefault();
- 		String attrDest = tempDir + "_Root" + File.separator + "ltr.attr";
- 		String dataDest = tempDir + "_Root" + File.separator + "ltr.dta";		
+ 		String attrDest = tempDir + "_Root" + File.separator + "fir.attr";
+ 		String dataDest = tempDir + "_Root" + File.separator + "fir.dta";		
  
 		Files.copy(fs.getPath(opts.attPath), fs.getPath(attrDest), StandardCopyOption.REPLACE_EXISTING);
-		
 		BufferedReader br = new BufferedReader(new FileReader(opts.trainPath), 65535);
 		BufferedWriter data_out = new BufferedWriter(new FileWriter(dataDest));
+		
 		int data_size = 0;
-		for (String line = br.readLine(); line != null; data_size++) {
+
+ 		for (String line = br.readLine(); line != null; data_size++) {
 				data_out.write(line + "\n");
 				line = br.readLine();
 		}
 		br.close();			
 		data_out.flush();
 		data_out.close();
-		
+
 		long start = System.currentTimeMillis();
 		InteractionTreeLearnerGAMMC app = new InteractionTreeLearnerGAMMC(opts);
 		InteractionTree tree = app.build(data_size);
@@ -226,19 +231,19 @@ public class InteractionTreeLearnerGAMMC{
 				if (!right_dir.exists()) {
 					right_dir.mkdir();
 				}
-		 		String attrSrc = tempDir + "_Root" + File.separator + "ltr.attr";
-		 		String attrDestL = dirStr_L + File.separator + "ltr.attr";
-		 		String attrDestR = dirStr_R + File.separator + "ltr.attr";
+		 		String attrSrc = tempDir + "_Root" + File.separator + "fir.attr";
+		 		String attrDestL = dirStr_L + File.separator + "fir.attr";
+		 		String attrDestR = dirStr_R + File.separator + "fir.attr";
 		 		FileSystem fs = FileSystems.getDefault();
 				Files.copy(fs.getPath(attrSrc), fs.getPath(attrDestL), StandardCopyOption.REPLACE_EXISTING);				
 				Files.copy(fs.getPath(attrSrc), fs.getPath(attrDestR), StandardCopyOption.REPLACE_EXISTING);				
 				
-				String fileName = File.separator + "ltr.dta";
+				String fileName = File.separator + "fir.dta";
 				String dataStr = dirStr_cur + fileName;
 				String dataStrL = dirStr_L + fileName;
 				String dataStrR = dirStr_R + fileName;
 				
-				IntPair sizes = split(ainfo.columns.get(interiorNode.attIndex), 
+				IntPair sizes = split(ainfo.attributes.get(interiorNode.attIndex).getColumn(), 
 						interiorNode.splitPoint, dataStr, dataStrL, dataStrR);
 				
 				MyThread lThread = new MyThread(this, sizes.v1, pre + "_L", limit);
@@ -326,14 +331,14 @@ public class InteractionTreeLearnerGAMMC{
 
 		String tmpDir = tempDir + "_" + prefix;
 		File dir = new File(tmpDir);
-		String attr = tmpDir + File.separator + "ltr.attr";
-		String attrfs = tmpDir + File.separator + "ltr.fs.attr";
-		String attrfsfs = tmpDir + File.separator + "ltr.fs.fs.attr";
-		String dtaAG = tmpDir + File.separator + "ltr.dta";
-		String trainAG = tmpDir + File.separator + "ltr.train.ag";
-		String validAG = tmpDir + File.separator + "ltr.valid.ag";
-		String train = tmpDir + File.separator + "ltr.train.dta";
-		String valid = tmpDir + File.separator + "ltr.valid.dta";
+		String attr = tmpDir + File.separator + "fir.attr";
+		String attrfs = tmpDir + File.separator + "fir.fs.attr";
+		String attrfsfs = tmpDir + File.separator + "fir.fs.fs.attr";
+		String dtaAG = tmpDir + File.separator + "fir.dta";
+		String trainAG = tmpDir + File.separator + "fir.train.ag";
+		String validAG = tmpDir + File.separator + "fir.valid.ag";
+		String train = tmpDir + File.separator + "fir.train.dta";
+		String valid = tmpDir + File.separator + "fir.valid.dta";
 
  		FileSystem fs = FileSystems.getDefault();
 
@@ -345,8 +350,11 @@ public class InteractionTreeLearnerGAMMC{
 		double valid_size =  Math.min(data_size - train_size, 500000);
 		double portion_train = train_size /  (double) data_size;
 		double portion_valid = valid_size / (double) data_size;
+		int group_col = 0;
+		if(!opts.group.equals("None"))
+			group_col = ainfo.nameToCol.get(opts.group) + 1;
 
-		runProcess(dir, RND, dtaAG, "ltr", portion_valid + "", portion_train + "", opts.group + "");
+		runProcess(dir, RND, dtaAG, "fir", portion_valid + "", portion_train + "", group_col + "");
 		Files.move(fs.getPath(train), fs.getPath(trainAG), StandardCopyOption.REPLACE_EXISTING);
 		Files.move(fs.getPath(valid), fs.getPath(validAG), StandardCopyOption.REPLACE_EXISTING);
 
@@ -371,13 +379,13 @@ public class InteractionTreeLearnerGAMMC{
 		valid_size =  Math.min(data_size - train_size, 500000);
 		portion_train = train_size / (double) data_size;
 		portion_valid = valid_size / (double) data_size;
-		runProcess(dir, RND, dtaAG, "ltr", portion_valid + "", portion_train + "", opts.group + "");
 
+		runProcess(dir, RND, dtaAG, "fir", portion_valid + "", portion_train + "", group_col + "");
+		
 		// 2. Fast feature selection
 		timeStamp("Select 12 features for AG.");
 		// Here ltr.attr -> ltr.fs.attr
-		runProcess(dir, BT, attr, train, valid, "-k 12 -b 300 -a 0.01 -c roc"); 
-		
+		runProcess(dir, BT, attr, train, valid, "-k 12 -b 300 -a 0.01 -c roc"); 		
 		Path fsLogSrc = fs.getPath(tmpDir + File.separator + "log.txt");
 		Path fsLogDst = fs.getPath(tmpDir + File.separator + "log_fs.txt");
 		Path fsModelSrc = fs.getPath(tmpDir + File.separator + "model.bin");
@@ -398,9 +406,10 @@ public class InteractionTreeLearnerGAMMC{
 
 		// 4. Choose candidates
 		String interactionGraph = tmpDir + File.separator + "list.txt";
-		Pair<List<String>, Boolean> gcret = getCandidates(interactionGraph, opts.wThreshold);
+		Triple<List<String>, Boolean, Set<String>> gcret = getCandidates(interactionGraph, opts.wThreshold);
 		List<String> featureCandidates = gcret.v1;
 		boolean weakOnly = gcret.v2; 
+		Set<String> selectedFeatures = gcret.v3;
 		
 		PrintWriter out = new PrintWriter(tmpDir + File.separator + "candidates.txt");
 		for (String name : featureCandidates) {
@@ -452,33 +461,18 @@ public class InteractionTreeLearnerGAMMC{
 		//6. Plots
 		timeStamp("Visualization.");
 
-		// Here current model.bin is produced by AG. No need to run additional scripts.
-		for (String feat : featureCandidates) {
-			runProcess(dir, VIS_EFFECT, attr, train, feat, "ag");
-		}
-		List<Pair<String, String>> pairs = getCandidates(interactionGraph);
-		for (Pair<String, String> pair : pairs) {
-			runProcess(dir, VIS_IPLOT, attr, train, pair.v1, pair.v2, "ag");
-		}
 		runProcess(dir, VIS_MV, "AG_PLOTS");
-		// Backup visualization log
-		Path visLogSrc = fs.getPath(tmpDir + File.separator + "log.txt");
-		Path visLogDst = fs.getPath(tmpDir + File.separator + "AG_PLOTS/log_vis.txt");
-		Files.copy(visLogSrc, visLogDst, StandardCopyOption.REPLACE_EXISTING);
 
-		visBT(dir, attrfs, train, valid, tmpDir, featureCandidates, pairs, attr, "v1");
-		visBT(dir, attrfs, valid, train, tmpDir, featureCandidates, pairs, attr, "v2");
-	
-		// Backup log and plot files.
+		List<Pair<String, String>> pairs = getInteractions(interactionGraph);
+		visIPlot(dir, attrfs, train, valid, tmpDir, pairs, attr, "v1");
+		visIPlot(dir, attrfs, valid, train, tmpDir, pairs, attr, "v2");
 		runProcess(dir, VIS_MV, "BT_PLOTS");
-		visLogSrc = fs.getPath(tmpDir + File.separator + "log.txt");
-		visLogDst = fs.getPath(tmpDir + File.separator + "BT_PLOTS/log_vis.txt");
-		Files.copy(visLogSrc, visLogDst, StandardCopyOption.REPLACE_EXISTING);
+
 
 		// 7. Read features info: get quantiles from the effect plots
 		List<Feature> features = new ArrayList<>();
 		for (String key : featureCandidates) {
-			Feature feature = Feature.read(tmpDir + File.separator + key + ".effect.txt");
+			Feature feature = Feature.read(tmpDir + File.separator + "AG_PLOTS" + File.separator + key + ".effect.txt");
 			features.add(feature);
 		}
 
@@ -487,10 +481,9 @@ public class InteractionTreeLearnerGAMMC{
 		int bestAtt = -1;
 		double bestSplit = -1;
 		double bestROC = -1;
-		List<Integer> candidates = ainfo.getIds(featureCandidates);
 		
 		for (int i = 0; i < features.size(); i++) {
-			int attIndex = candidates.get(i);
+			int attIndex = ainfo.nameToId.get((featureCandidates.get(i)));
 			FeatureSplit split = new FeatureSplit(features.get(i));		
 			for (int j = 0; j < split.splits.length; j++) {
 				
@@ -533,7 +526,6 @@ public class InteractionTreeLearnerGAMMC{
 				double[] targets = new double[actual_valid_size];
 				double[] preds = new double[actual_valid_size];
 				vNo = 0;
-				// GAM gamL = learner.buildClassifier(trainLeftGAM, validLeftGAM, 10000 / ainfo.attributes.size(), 3);
 				GAM gamL = learner.buildClassifier(trainLeftGAM, validLeftGAM, 100, 3);
 				for (Instance instance : validLeftGAM) {
 					targets[vNo] = instance.getTarget();
@@ -541,7 +533,6 @@ public class InteractionTreeLearnerGAMMC{
 					vNo++;
 				}
 
-				// GAM gamR = learner.buildClassifier(trainRightGAM, validRightGAM, 10000 / ainfo.attributes.size(), 3);
 				GAM gamR = learner.buildClassifier(trainRightGAM, validRightGAM, 100, 3);
 				for (Instance instance : validRightGAM) {
 					targets[vNo] = instance.getTarget();
@@ -574,15 +565,20 @@ public class InteractionTreeLearnerGAMMC{
 				if(weakOnly)
 					sb.append("Weak interactions only.\n");
 				// Visualize the splits
-				//runProcess(dir, VIS_SPLIT, "AG_PLOTS", ainfo.attributes.get(bestAtt).getName(), bestSplit+"");
 				runProcess(dir, VIS_SPLIT, "BT_PLOTS", ainfo.attributes.get(bestAtt).getName(), bestSplit+"");
 			}
 			else {
+				visEffect(dir, attrfs, train, valid, tmpDir, selectedFeatures, attr, "v1");
+				visEffect(dir, attrfs, valid, train, tmpDir, selectedFeatures, attr, "v2");
+				runProcess(dir, VIS_MV, "BT_PLOTS");
 				sb.append("No improvement found.\n");
 				System.out.println(sb);
 				return new InteractionTreeLeaf();
 			}
 		} else {
+			visEffect(dir, attrfs, train, valid, tmpDir, selectedFeatures, attr, "v1");
+			visEffect(dir, attrfs, valid, train, tmpDir, selectedFeatures, attr, "v2");
+			runProcess(dir, VIS_MV, "BT_PLOTS");
 			sb.append("No interactions found.\n");
 			System.out.println(sb);
 			return new InteractionTreeLeaf();
@@ -592,8 +588,8 @@ public class InteractionTreeLearnerGAMMC{
 		
 	}
 	
-	private void visBT( File dir, String attrfs, String train, String valid, String tmpDir, 
-						List<String> featureCandidates, List<Pair<String, String>> pairs, String attr, String suffix
+	protected void visIPlot( File dir, String attrfs, String train, String valid, String tmpDir, 
+						List<Pair<String, String>> pairs, String attr, String suffix
 					  ) throws Exception{
 		// Here we build a full model. Backup bagged tree.
 		runProcess(dir, BT, attrfs, train, valid, "-b 300 -a 0.01 -c roc");
@@ -605,13 +601,29 @@ public class InteractionTreeLearnerGAMMC{
 		Files.copy(btLogSrc, btLogDst, StandardCopyOption.REPLACE_EXISTING);
 		Files.copy(btModelSrc, btModelDst, StandardCopyOption.REPLACE_EXISTING);
 
-		// Run visualization again.
-		for (String feat : featureCandidates) {
-			runProcess(dir, VIS_EFFECT, attr, train, feat, suffix);
-		}
+		// Run visualization
 		for (Pair<String, String> pair : pairs) {
 			runProcess(dir, VIS_IPLOT, attr, train, pair.v1, pair.v2, suffix);
 		}		
+	}
+	
+	protected void visEffect( File dir, String attrfs, String train, String valid, String tmpDir, 
+			Set<String> features, String attr, String suffix
+		  ) throws Exception{
+		// Here we build a full model. Backup bagged tree.
+		runProcess(dir, BT, attrfs, train, valid, "-b 300 -a 0.01 -c roc");
+		FileSystem fs = FileSystems.getDefault();
+		Path btLogSrc = fs.getPath(tmpDir + File.separator + "log.txt");
+		Path btLogDst = fs.getPath(tmpDir + File.separator + "log_bt." + suffix + ".txt");
+		Path btModelSrc = fs.getPath(tmpDir + File.separator + "model.bin");
+		Path btModelDst = fs.getPath(tmpDir + File.separator + "model_bt." + suffix + ".bin");
+		Files.copy(btLogSrc, btLogDst, StandardCopyOption.REPLACE_EXISTING);
+		Files.copy(btModelSrc, btModelDst, StandardCopyOption.REPLACE_EXISTING);
+	
+		// Run visualization
+		for (String feat : features) {
+			runProcess(dir, VIS_EFFECT, attr, train, feat, suffix);
+		}	
 	}
 	
 	protected static void readPredicts(String path, List<Double> preds) throws Exception {
@@ -669,7 +681,7 @@ public class InteractionTreeLearnerGAMMC{
 	}
 	
 	
-	protected static List<Pair<String, String>> getCandidates(String interactionGraph) 
+	protected static List<Pair<String, String>> getInteractions(String interactionGraph) 
 			throws Exception {
 		List<Pair<String, String>> candidates = new ArrayList<>();
 		BufferedReader br = new BufferedReader(new FileReader(interactionGraph));
@@ -692,9 +704,10 @@ public class InteractionTreeLearnerGAMMC{
 		return candidates;
 	}
 	
-	protected static Pair<List<String>, Boolean> getCandidates(String interactionGraph, double wThreshold) 
+	protected static Triple<List<String>, Boolean, Set<String>> getCandidates(String interactionGraph, double wThreshold) 
 			throws Exception {
 		List<String> candidates = new ArrayList<>();
+		Set<String> selectFeats = new HashSet<>();
 		Map<String, Map<String, Double>> graph = new HashMap<>();
 
 		BufferedReader br = new BufferedReader(new FileReader(interactionGraph));
@@ -706,6 +719,8 @@ public class InteractionTreeLearnerGAMMC{
 			String[] data = line.split("\\s+");
 			String x = data[0];
 			String y = data[1];
+			selectFeats.add(x);
+			selectFeats.add(y);
 			if (data[2].indexOf("inf") >= 0 || data[2].indexOf("nan") >= 0) {
 				continue;
 			}
@@ -729,20 +744,15 @@ public class InteractionTreeLearnerGAMMC{
 
 		for (String node : graph.keySet()) {
 			Map<String, Double> adjList = graph.get(node);
-//			int weakN = 0;
 			for (double w : adjList.values()) {
 				if(w >= wThreshold) {
 					strongCands.add(node);
 				}
 				if(w >= 3) {
-//					weakN++;
 					weakCands.add(node);
 				}
 			}
-/*			if(weakN >= 3) {
-				weakCands.add(node);
-			}
-*/		}
+		}
 		
 		boolean weakOnly = false;
 		Set<String> supCandidates;
@@ -782,7 +792,7 @@ public class InteractionTreeLearnerGAMMC{
 			graph.remove(bestNode);
 		}
 
-		return new Pair<List<String>, Boolean> (candidates, weakOnly);
+		return new Triple<List<String>, Boolean, Set<String>> (candidates, weakOnly, selectFeats);
 	}
 	
 }

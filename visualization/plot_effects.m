@@ -3,7 +3,7 @@ folder='./';
 files=dir([folder '*effect.txt']);
 for iF = 1:numel(files)
 
-    fn = files(iF).name; %'x1.pdf.txt';
+    fn = files(iF).name; 
 
     data = dlmread([folder fn],'\t',2,0);
 
@@ -14,7 +14,5 @@ for iF = 1:numel(files)
     make_effect_plot(xvalues, xcounts, values, fn)
 
     print(gcf,'-depsc',[folder fn '.eps']);
-    print(gcf,'-djpeg90',[folder fn '.jpg']);
 
-    %pause
 end 

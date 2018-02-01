@@ -9,6 +9,8 @@
 .externalToolBuilders/
 .settings/
 eclipse*/
+java/.metadata/*
+java/bin/*
 
 # Intellij
 *.iml

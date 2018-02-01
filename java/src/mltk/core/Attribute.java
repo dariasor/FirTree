@@ -25,7 +25,9 @@ public abstract class Attribute implements Comparable<Attribute>, Copyable<Attri
 
 	protected Type type;
 
-	protected int index;
+	protected int index = -1;
+	
+	protected int column = -1; //columns start with zero
 
 	protected String name;
 
@@ -65,6 +67,14 @@ public abstract class Attribute implements Comparable<Attribute>, Copyable<Attri
 		return name;
 	}
 
+	public final int getColumn() {
+		return column;
+	}	
+	public final void setColumn(int column) {
+		this.column = column;
+	}
+	
+	
 	@Override
 	public int compareTo(Attribute att) {
 		return (this.index - att.index);

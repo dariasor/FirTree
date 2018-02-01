@@ -22,4 +22,4 @@ else
 	exit 1
 fi
 
-$VIS_EFFECT -v $TRAIN_FILE -r $ATTR_FILE -f $FEATURE -o $SUFFIX > /dev/null
+$VIS_EFFECT -v $TRAIN_FILE -r $ATTR_FILE -f $FEATURE -o $SUFFIX -q 30 > /dev/null

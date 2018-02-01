@@ -1,14 +1,16 @@
 package mltk.core.io;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 
 import mltk.core.Attribute;
 
 /**
  * Structure for information on attributes in the data: 
- * list of active attributes, class attributes,  
- * columns corresponding to the active attributes in the data file
+ * list of active attributes, class attribute,  
+ * map from names to columns in the data file for all attributes. Columns start with zero
+ * map from ids to columns for active attributes
  * 
  * @author Daria Sorokina
  * 
@@ -17,30 +19,15 @@ import mltk.core.Attribute;
 public class AttrInfo {
 	public List<Attribute> attributes;
 	public Attribute clsAttr;
-	public List<Integer> columns;
+	public HashMap<String, Integer> nameToCol;	//defined for all attributes
+	public HashMap<String, Integer> nameToId;	//defined for active attributes only (inactive don't have id)
 	
 	/**
 	 * Default constructor 
 	 */
 	public AttrInfo() {
 		this.attributes = new ArrayList<Attribute>();
-		this.columns = new ArrayList<Integer>();
-	}
-
-	/**
-	 * Maps names of attributes into their ids
-	 * 
-	 * @param names names of attributes
-	 * @return a list of corresponding attribute ids.
-	 */
-	public List<Integer> getIds(List<String> names)	{
-		List<Integer> ids = new ArrayList<>();
-		for(String name: names)
-			for(Attribute att: attributes)
-				if(att.getName().equals(name)) {
-					ids.add(att.getIndex());
-					break;
-				}
-		return ids;
+		this.nameToCol = new HashMap<String, Integer>();
+		this.nameToId = new HashMap<String, Integer>();
 	}
 }
