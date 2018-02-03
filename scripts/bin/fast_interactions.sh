@@ -76,4 +76,4 @@ $PYTHON $PARSE_INTERACTIONS log.txt > list.txt
 END=$(date +%s)
 DIFF=$(( $END - $START ))
 echo "Time: $DIFF seconds" > time_grove.log
-rm -fr AGTemp
+
