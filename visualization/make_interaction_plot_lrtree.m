@@ -78,8 +78,8 @@ if yvalues(yn) == 0
 	end
 end
 if length(legendtxt) > 0
-  yLegend{1} = legendtxt(1,:);
-  yLegend{2} = legendtxt(2,:);
+  yLegend{1} = fix_title(legendtxt(1,:));
+  yLegend{2} = fix_title(legendtxt(2,:));
 end
 
 legend(handles, yLegend,'Location','NorthEastOutside');
