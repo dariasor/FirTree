@@ -58,7 +58,7 @@ if(hasMV)
 	end
 end	
 set(gca,'XTick', xvalues, 'XTickLabel', xLegend );
-xlh = xlabel(xlabelstr);
+xlh = xlabel(fix_title(xlabelstr));
 set(xlh, 'FontSize', 20);
 rotateticklabel(gca,45);
 
