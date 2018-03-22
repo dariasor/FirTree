@@ -1,4 +1,4 @@
-package lrtree;
+package firtree;
 
 import java.util.Date;
 import java.io.BufferedReader;
@@ -109,10 +109,20 @@ public class InteractionTreeLearnerGAMMC{
 	
 	private Options opts;
 	private AttrInfo ainfo;
+	private int group_col;
 	
 	public InteractionTreeLearnerGAMMC(Options opts) throws IOException {
 		this.opts = opts;
 		ainfo = AttributesReader.read(opts.attPath);
+		group_col = 0;
+		if(!opts.group.equals("None")) {
+			if(ainfo.nameToCol.containsKey(opts.group))
+				group_col = ainfo.nameToCol.get(opts.group) + 1;
+			else {
+				System.err.println("Error: the feature with the name " + opts.group + " does not exist.");
+				System.exit(1);
+			}
+		}
 	}
 	
 	public static void main(String[] args) throws Exception {
@@ -157,7 +167,10 @@ public class InteractionTreeLearnerGAMMC{
 			System.err.println("Error: the output file " + opts.outputPath + " is not a regular file.");
 			System.exit(1);
 		}
-			
+		
+		FileWriter logFile = new FileWriter(opts.dir + "/treelog.txt", false);
+		logFile.close();
+				
 		opts.prefix += File.separator;
 		AG = opts.prefix + "fast_interactions.sh";
 		BT = opts.prefix + "bt.sh";
@@ -200,6 +213,14 @@ public class InteractionTreeLearnerGAMMC{
 		tree.writeStructure(out);
 		out.flush();
 		out.close();
+	}
+	
+	public void printLog(StringBuilder text) throws Exception{
+		System.out.println(text);
+		PrintWriter log = new PrintWriter(new BufferedWriter(new FileWriter(opts.dir + "/treelog.txt", true)));
+		log.println(text);
+		log.flush();
+		log.close();
 	}
 
 	public InteractionTree build(int data_size) throws Exception {
@@ -325,14 +346,14 @@ public class InteractionTreeLearnerGAMMC{
 		sb.append(prefix + "\n");
 		if (data_size < limit) {
 			sb.append("Not enough data.\n");
-			System.out.println(sb);
+			printLog(sb);		
 			return new InteractionTreeLeaf();
 		}
 
 		String tmpDir = tempDir + "_" + prefix;
 		File dir = new File(tmpDir);
 		String attr = tmpDir + File.separator + "fir.attr";
-		String attrfs = tmpDir + File.separator + "fir.fs.attr";
+		String attrfs12 = tmpDir + File.separator + "fir.fs.attr";
 		String attrfsfs = tmpDir + File.separator + "fir.fs.fs.attr";
 		String dtaAG = tmpDir + File.separator + "fir.dta";
 		String trainAG = tmpDir + File.separator + "fir.train.ag";
@@ -350,9 +371,6 @@ public class InteractionTreeLearnerGAMMC{
 		double valid_size =  Math.min(data_size - train_size, 500000);
 		double portion_train = train_size /  (double) data_size;
 		double portion_valid = valid_size / (double) data_size;
-		int group_col = 0;
-		if(!opts.group.equals("None"))
-			group_col = ainfo.nameToCol.get(opts.group) + 1;
 
 		runProcess(dir, RND, dtaAG, "fir", portion_valid + "", portion_train + "", group_col + "");
 		Files.move(fs.getPath(train), fs.getPath(trainAG), StandardCopyOption.REPLACE_EXISTING);
@@ -369,7 +387,7 @@ public class InteractionTreeLearnerGAMMC{
 		}
 		if (allSame) {
 			sb.append("All data points have the same label.\n");
-			System.out.println(sb);
+			printLog(sb);
 			return new InteractionTreeLeaf();
 		}
 
@@ -395,7 +413,7 @@ public class InteractionTreeLearnerGAMMC{
 
 		// 3. Run ag and get interactions
 		timeStamp("Run AG with selected features on the small train set.");
-		runProcess(dir, AG, attrfs, attrfsfs, trainAG, validAG);
+		runProcess(dir, AG, attrfs12, attrfsfs, trainAG, validAG);
 		// Backup log and model
 		Path agLogSrc = fs.getPath(tmpDir + File.separator + "log.txt");
 		Path agLogDst = fs.getPath(tmpDir + File.separator + "log_ag.txt");
@@ -407,12 +425,12 @@ public class InteractionTreeLearnerGAMMC{
 		// 4. Choose candidates
 		String interactionGraph = tmpDir + File.separator + "list.txt";
 		Triple<List<String>, Boolean, Set<String>> gcret = getCandidates(interactionGraph, opts.wThreshold);
-		List<String> featureCandidates = gcret.v1;
+		List<String> candidateFeatureNames = gcret.v1;
 		boolean weakOnly = gcret.v2; 
-		Set<String> selectedFeatures = gcret.v3;
+		Set<String> selectedFeatureNames = gcret.v3;
 		
 		PrintWriter out = new PrintWriter(tmpDir + File.separator + "candidates.txt");
-		for (String name : featureCandidates) {
+		for (String name : candidateFeatureNames) {
 			out.println(name);
 		}
 		out.flush();
@@ -464,16 +482,16 @@ public class InteractionTreeLearnerGAMMC{
 		runProcess(dir, VIS_MV, "AG_PLOTS");
 
 		List<Pair<String, String>> pairs = getInteractions(interactionGraph);
-		visIPlot(dir, attrfs, train, valid, tmpDir, pairs, attr, "v1");
-		visIPlot(dir, attrfs, valid, train, tmpDir, pairs, attr, "v2");
+		visIPlot(dir, attrfs12, train, valid, tmpDir, pairs, "v1");
+		visIPlot(dir, attrfs12, valid, train, tmpDir, pairs, "v2");
 		runProcess(dir, VIS_MV, "BT_PLOTS");
 
 
 		// 7. Read features info: get quantiles from the effect plots
-		List<Feature> features = new ArrayList<>();
-		for (String key : featureCandidates) {
+		List<Feature> candidateFeatures = new ArrayList<>();
+		for (String key : candidateFeatureNames) {
 			Feature feature = Feature.read(tmpDir + File.separator + "AG_PLOTS" + File.separator + key + ".effect.txt");
-			features.add(feature);
+			candidateFeatures.add(feature);
 		}
 
 		// 8. Evaluate splits with GAMs
@@ -482,9 +500,9 @@ public class InteractionTreeLearnerGAMMC{
 		double bestSplit = -1;
 		double bestROC = -1;
 		
-		for (int i = 0; i < features.size(); i++) {
-			int attIndex = ainfo.nameToId.get((featureCandidates.get(i)));
-			FeatureSplit split = new FeatureSplit(features.get(i));		
+		for (int i = 0; i < candidateFeatures.size(); i++) {
+			int attIndex = ainfo.nameToId.get((candidateFeatureNames.get(i)));
+			FeatureSplit split = new FeatureSplit(candidateFeatures.get(i));		
 			for (int j = 0; j < split.splits.length; j++) {
 				
 				double splitPoint = (split.feature.centers[j] + split.feature.centers[j + 1]) / 2;
@@ -568,62 +586,67 @@ public class InteractionTreeLearnerGAMMC{
 				runProcess(dir, VIS_SPLIT, "BT_PLOTS", ainfo.attributes.get(bestAtt).getName(), bestSplit+"");
 			}
 			else {
-				visEffect(dir, attrfs, train, valid, tmpDir, selectedFeatures, attr, "v1");
-				visEffect(dir, attrfs, valid, train, tmpDir, selectedFeatures, attr, "v2");
+				visEffect(dir, attrfs12, train, valid, tmpDir, selectedFeatureNames, "v1");
+				visEffect(dir, attrfs12, valid, train, tmpDir, selectedFeatureNames, "v2");
 				runProcess(dir, VIS_MV, "BT_PLOTS");
 				sb.append("No improvement found.\n");
-				System.out.println(sb);
+				printLog(sb);
 				return new InteractionTreeLeaf();
 			}
 		} else {
-			visEffect(dir, attrfs, train, valid, tmpDir, selectedFeatures, attr, "v1");
-			visEffect(dir, attrfs, valid, train, tmpDir, selectedFeatures, attr, "v2");
+			visEffect(dir, attrfs12, train, valid, tmpDir, selectedFeatureNames, "v1");
+			visEffect(dir, attrfs12, valid, train, tmpDir, selectedFeatureNames, "v2");
 			runProcess(dir, VIS_MV, "BT_PLOTS");
 			sb.append("No interactions found.\n");
-			System.out.println(sb);
+			printLog(sb);
 			return new InteractionTreeLeaf();
 		}
-		System.out.println(sb);
+		printLog(sb);
 		return new InteractionTreeInteriorNode(bestAtt, bestSplit);
 		
 	}
 	
-	protected void visIPlot( File dir, String attrfs, String train, String valid, String tmpDir, 
-						List<Pair<String, String>> pairs, String attr, String suffix
+	protected void visIPlot( File dir, String attr, String train, String valid, String tmpDir, 
+						List<Pair<String, String>> pairs, String suffix
 					  ) throws Exception{
-		// Here we build a full model. Backup bagged tree.
-		runProcess(dir, BT, attrfs, train, valid, "-b 300 -a 0.01 -c roc");
-		FileSystem fs = FileSystems.getDefault();
-		Path btLogSrc = fs.getPath(tmpDir + File.separator + "log.txt");
-		Path btLogDst = fs.getPath(tmpDir + File.separator + "log_bt." + suffix + ".txt");
-		Path btModelSrc = fs.getPath(tmpDir + File.separator + "model.bin");
-		Path btModelDst = fs.getPath(tmpDir + File.separator + "model_bt." + suffix + ".bin");
-		Files.copy(btLogSrc, btLogDst, StandardCopyOption.REPLACE_EXISTING);
-		Files.copy(btModelSrc, btModelDst, StandardCopyOption.REPLACE_EXISTING);
+		// Here we build a large BT model. 
+		runProcess(dir, BT, attr, train, valid, "-b 300 -a 0.01 -c roc");
 
 		// Run visualization
 		for (Pair<String, String> pair : pairs) {
 			runProcess(dir, VIS_IPLOT, attr, train, pair.v1, pair.v2, suffix);
 		}		
-	}
-	
-	protected void visEffect( File dir, String attrfs, String train, String valid, String tmpDir, 
-			Set<String> features, String attr, String suffix
-		  ) throws Exception{
-		// Here we build a full model. Backup bagged tree.
-		runProcess(dir, BT, attrfs, train, valid, "-b 300 -a 0.01 -c roc");
+
+		//backup model and log files
 		FileSystem fs = FileSystems.getDefault();
 		Path btLogSrc = fs.getPath(tmpDir + File.separator + "log.txt");
 		Path btLogDst = fs.getPath(tmpDir + File.separator + "log_bt." + suffix + ".txt");
 		Path btModelSrc = fs.getPath(tmpDir + File.separator + "model.bin");
 		Path btModelDst = fs.getPath(tmpDir + File.separator + "model_bt." + suffix + ".bin");
-		Files.copy(btLogSrc, btLogDst, StandardCopyOption.REPLACE_EXISTING);
-		Files.copy(btModelSrc, btModelDst, StandardCopyOption.REPLACE_EXISTING);
+		Files.move(btLogSrc, btLogDst, StandardCopyOption.REPLACE_EXISTING);
+		Files.move(btModelSrc, btModelDst, StandardCopyOption.REPLACE_EXISTING);
+	}
+	
+	protected void visEffect( File dir, String attr, String train, String valid, String tmpDir, 
+			Set<String> features, String suffix
+		  ) throws Exception{
+		// Here we build a large BT model
+		runProcess(dir, BT, attr, train, valid, "-b 300 -a 0.01 -c roc");
 	
 		// Run visualization
 		for (String feat : features) {
 			runProcess(dir, VIS_EFFECT, attr, train, feat, suffix);
-		}	
+		}
+		
+		//backup model and log files
+		FileSystem fs = FileSystems.getDefault();
+		Path btLogSrc = fs.getPath(tmpDir + File.separator + "log.txt");
+		Path btLogDst = fs.getPath(tmpDir + File.separator + "log_bt." + suffix + ".txt");
+		Path btModelSrc = fs.getPath(tmpDir + File.separator + "model.bin");
+		Path btModelDst = fs.getPath(tmpDir + File.separator + "model_bt." + suffix + ".bin");
+		Files.move(btLogSrc, btLogDst, StandardCopyOption.REPLACE_EXISTING);
+		Files.move(btModelSrc, btModelDst, StandardCopyOption.REPLACE_EXISTING);
+	
 	}
 	
 	protected static void readPredicts(String path, List<Double> preds) throws Exception {

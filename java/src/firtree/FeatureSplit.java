@@ -1,4 +1,4 @@
-package lrtree;
+package firtree;
 
 public class FeatureSplit {
 
