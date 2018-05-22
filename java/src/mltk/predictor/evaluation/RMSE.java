@@ -39,4 +39,7 @@ public class RMSE extends Metric {
 		return rmse;
 	}
 
+	public String toString() {
+		return "RMSE";
+	}
 }

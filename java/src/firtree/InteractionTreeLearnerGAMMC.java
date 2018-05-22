@@ -1,41 +1,22 @@
 package firtree;
 
-import java.util.Date;
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.io.PrintWriter;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.io.*;
+import java.nio.file.*;
+import java.util.*;
 
 import mltk.cmdline.Argument;
 import mltk.cmdline.CmdLineParser;
 import mltk.core.Instance;
 import mltk.core.Instances;
-import mltk.core.io.AttrInfo;
-import mltk.core.io.AttributesReader;
-import mltk.core.io.InstancesReader;
+import mltk.core.io.*;
 import mltk.predictor.evaluation.AUC;
+import mltk.predictor.evaluation.Metric;
+import mltk.predictor.evaluation.RMSE;
 import mltk.predictor.gam.GAMLearner;
 import mltk.predictor.gam.GAM;
 import mltk.util.Queue;
 import mltk.util.Random;
-import mltk.util.tuple.Pair;
-import mltk.util.tuple.IntPair;
-import mltk.util.tuple.Triple;
+import mltk.util.tuple.*;
 
 
 public class InteractionTreeLearnerGAMMC{
@@ -44,12 +25,14 @@ public class InteractionTreeLearnerGAMMC{
 		
 		int limit;
 		String prefix;
-		int data_size;
+		int data_size; 
+		int zero_size;
 		InteractionTreeNode node;
 		InteractionTreeLearnerGAMMC app;
 		
-		MyThread(InteractionTreeLearnerGAMMC app, int data_size, String prefix, int limit) {
+		MyThread(InteractionTreeLearnerGAMMC app, int data_size, int zero_size, String prefix, int limit) {
 			this.data_size = data_size;
+			this.zero_size = zero_size;
 			this.prefix = prefix;
 			this.limit = limit;
 			this.app = app;
@@ -58,7 +41,7 @@ public class InteractionTreeLearnerGAMMC{
 		
 		public void run() {
 			try {
-				node = app.createNode(data_size, prefix, limit);
+				node = app.createNode(data_size, zero_size, prefix, limit);
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
@@ -105,11 +88,14 @@ public class InteractionTreeLearnerGAMMC{
 		@Argument(name = "-g", description = "name of the attribute with the group id (default: \"\")")
 		String group = "None";
 		
+		@Argument(name = "-c", description = "(rms|roc) - metric to evaluate splits (default: rms)")
+		String metric_str = "roc";
 	}
 	
 	private Options opts;
 	private AttrInfo ainfo;
 	private int group_col;
+	private Boolean regression;
 	
 	public InteractionTreeLearnerGAMMC(Options opts) throws IOException {
 		this.opts = opts;
@@ -123,6 +109,7 @@ public class InteractionTreeLearnerGAMMC{
 				System.exit(1);
 			}
 		}
+		regression = opts.metric_str.equals("rms");
 	}
 	
 	public static void main(String[] args) throws Exception {
@@ -192,20 +179,29 @@ public class InteractionTreeLearnerGAMMC{
 		Files.copy(fs.getPath(opts.attPath), fs.getPath(attrDest), StandardCopyOption.REPLACE_EXISTING);
 		BufferedReader br = new BufferedReader(new FileReader(opts.trainPath), 65535);
 		BufferedWriter data_out = new BufferedWriter(new FileWriter(dataDest));
+
+		long start = System.currentTimeMillis();
+		InteractionTreeLearnerGAMMC app = new InteractionTreeLearnerGAMMC(opts);
+		
+		timeStamp("Initial Scan of the Data. ");
 		
 		int data_size = 0;
+		int zero_size = 0;
+		int clsColNo = app.ainfo.getClsCol();
 
  		for (String line = br.readLine(); line != null; data_size++) {
-				data_out.write(line + "\n");
-				line = br.readLine();
+ 			String[] data = line.split("\t+");
+			double clsValue = Double.parseDouble(data[clsColNo]);
+			if(clsValue == 0)
+				zero_size++;
+ 			data_out.write(line + "\n");
+			line = br.readLine();
 		}
 		br.close();			
 		data_out.flush();
 		data_out.close();
 
-		long start = System.currentTimeMillis();
-		InteractionTreeLearnerGAMMC app = new InteractionTreeLearnerGAMMC(opts);
-		InteractionTree tree = app.build(data_size);
+		InteractionTree tree = app.build(data_size, zero_size);
 		long end = System.currentTimeMillis();
 		
 		System.out.println("Finished building tree in " + (end - start) / 1000.0 + " (s).");
@@ -223,11 +219,11 @@ public class InteractionTreeLearnerGAMMC{
 		log.close();
 	}
 
-	public InteractionTree build(int data_size) throws Exception {
+	public InteractionTree build(int data_size, int zero_size) throws Exception {
 		int limit = Math.max((int)(data_size * opts.alpha), opts.leafSize);
 		InteractionTree tree = new InteractionTree();
 		Map<InteractionTreeNode, String> prefix = new HashMap<>();
-		tree.root = createNode(data_size, "Root", limit);
+		tree.root = createNode(data_size, zero_size, "Root", limit);
 		prefix.put(tree.root, "Root");
 		Queue<InteractionTreeNode> q = new Queue<>();
 		q.enqueue(tree.root);
@@ -264,11 +260,11 @@ public class InteractionTreeLearnerGAMMC{
 				String dataStrL = dirStr_L + fileName;
 				String dataStrR = dirStr_R + fileName;
 				
-				IntPair sizes = split(ainfo.attributes.get(interiorNode.attIndex).getColumn(), 
+				DataSizes sizes = split(ainfo.attributes.get(interiorNode.attIndex).getColumn(), 
 						interiorNode.splitPoint, dataStr, dataStrL, dataStrR);
-				
-				MyThread lThread = new MyThread(this, sizes.v1, pre + "_L", limit);
-				MyThread rThread = new MyThread(this, sizes.v2, pre + "_R", limit);
+		
+				MyThread lThread = new MyThread(this, sizes.left_size, sizes.left_zero_size, pre + "_L", limit);
+				MyThread rThread = new MyThread(this, sizes.right_size, sizes.right_zero_size, pre + "_R", limit);
 				lThread.start();
 				rThread.start();
 				lThread.join();
@@ -301,27 +297,33 @@ public class InteractionTreeLearnerGAMMC{
 		}
 	}
 	
-	protected static IntPair split(int col, double splitPoint, 
+	protected DataSizes split(int splitCol, double splitPoint, 
 			String dataFile, String outLeftFile, String outRightFile) throws IOException {
 		
 		BufferedReader br = new BufferedReader(new FileReader(dataFile), 65535);
 		BufferedWriter outLeft = new BufferedWriter(new FileWriter(outLeftFile));
 		BufferedWriter outRight = new BufferedWriter(new FileWriter(outRightFile));
-		int ln = 0; int rn = 0;
-		
+		DataSizes sizes = new DataSizes(0,0,0,0);
+		int clsCol = ainfo.getClsCol();
+			
 		String line = br.readLine();
 		while (line != null) {
 			String[] data = line.split("\t+");
 			line += "\n";
-			double value = data[col].equals("?") ?
+			double value = data[splitCol].equals("?") ?
 							Double.NaN :
-							Double.parseDouble(data[col]);
+							Double.parseDouble(data[splitCol]);
+			double clsValue = Double.parseDouble(data[clsCol]);
 			if ((value <= splitPoint) || Double.isNaN(splitPoint) && Double.isNaN(value)) {
 				outLeft.write(line);
-				ln++;
+				sizes.left_size++;
+				if(clsValue == 0)
+					sizes.left_zero_size++;
 			} else {
 				outRight.write(line);
-				rn++;
+				sizes.right_size++;
+				if(clsValue == 0)
+					sizes.right_zero_size++;
 			}
 			line = br.readLine();
 		}
@@ -332,15 +334,41 @@ public class InteractionTreeLearnerGAMMC{
 		outRight.flush();
 		outRight.close();
 		
-		return new IntPair(ln, rn);
+		return sizes;
 	}
 	
 	protected static void timeStamp(String msg){
 		Date tmpDate = new Date();
 		System.out.println("TIMESTAMP >>>> ".concat(tmpDate.toString()).concat(": ").concat(msg));
 	}
+
+	private void subsample(int data_size, int zero_size, int train_size, int valid_size, File dir, String dtaAG, int tar_col, int seed) throws Exception	{
+		if (zero_size <= data_size / 2)
+		{
+			double portion_train = (double) train_size / data_size;
+			double portion_valid = (double) valid_size /  data_size;
+			runProcess(dir, RND, "--input " + dtaAG + " --stem fir --group-method 1 --group " + group_col + 
+							" --valid " + portion_valid + " --train " + portion_train + " --rand " + seed);
+		} else 
+		{
+			double portion_zero_train = train_size / (zero_size * 2.0);
+			double portion_nonzero_train = train_size /((data_size - zero_size) * 2.0);
+			double portion_zero_valid = valid_size / (zero_size * 2.0);
+			double portion_nonzero_valid = valid_size /((data_size - zero_size) * 2.0);
+			
+			//if not enough non-zero data, split it between train and validation according to the originally planned proportions
+			if (portion_nonzero_train + portion_nonzero_valid > 1.0)
+			{
+				portion_nonzero_train = (double) train_size / (train_size + valid_size);
+				portion_nonzero_valid = 1 - portion_nonzero_train;
+			}
+			runProcess(dir, RND, "--input " + dtaAG + " --stem fir --group-method 1 --group " + group_col + " --target " + tar_col +
+					" --valid " + portion_nonzero_valid + " --train " + portion_nonzero_train + 
+					" --valid-zero " + portion_zero_valid + " --train-zero " + portion_zero_train + " --rand " + seed);		
+		}	
+	}
 	
-	protected InteractionTreeNode createNode(int data_size, String prefix, int limit) 
+	protected InteractionTreeNode createNode(int data_size, int zero_size, String prefix, int limit) 
 			throws Exception {
 		StringBuilder sb = new StringBuilder();
 		sb.append(prefix + "\n");
@@ -360,6 +388,7 @@ public class InteractionTreeLearnerGAMMC{
 		String validAG = tmpDir + File.separator + "fir.valid.ag";
 		String train = tmpDir + File.separator + "fir.train.dta";
 		String valid = tmpDir + File.separator + "fir.valid.dta";
+		int tar_col = ainfo.clsAttr.getColumn() + 1;		
 
  		FileSystem fs = FileSystems.getDefault();
 
@@ -367,12 +396,11 @@ public class InteractionTreeLearnerGAMMC{
 		// 1.1. Create datasets for ag
  		
  		timeStamp("Prepare train and test data for AG.");
-		double train_size =  Math.min(data_size / 3, 30000);
-		double valid_size =  Math.min(data_size - train_size, 500000);
-		double portion_train = train_size /  (double) data_size;
-		double portion_valid = valid_size / (double) data_size;
+		int train_size =  Math.min(data_size / 3, 30000);
+		int valid_size =  Math.min(data_size - train_size, 500000);
 
-		runProcess(dir, RND, dtaAG, "fir", portion_valid + "", portion_train + "", group_col + "");
+		subsample(data_size, zero_size, train_size, valid_size, dir, dtaAG, tar_col, 1);
+		
 		Files.move(fs.getPath(train), fs.getPath(trainAG), StandardCopyOption.REPLACE_EXISTING);
 		Files.move(fs.getPath(valid), fs.getPath(validAG), StandardCopyOption.REPLACE_EXISTING);
 
@@ -393,17 +421,15 @@ public class InteractionTreeLearnerGAMMC{
 
 		// 1.2 Create datasets for bt and gam 
 		timeStamp("Prepare train and test data for BT and GAM.");
-		train_size =  Math.min(data_size * 0.6667, 200000);
+		train_size =  Math.min((int)(data_size * 0.6667), 200000);
 		valid_size =  Math.min(data_size - train_size, 500000);
-		portion_train = train_size / (double) data_size;
-		portion_valid = valid_size / (double) data_size;
 
-		runProcess(dir, RND, dtaAG, "fir", portion_valid + "", portion_train + "", group_col + "");
+		subsample(data_size, zero_size, train_size, valid_size, dir, dtaAG, tar_col, 2);
 		
 		// 2. Fast feature selection
 		timeStamp("Select 12 features for AG.");
 		// Here ltr.attr -> ltr.fs.attr
-		runProcess(dir, BT, attr, train, valid, "-k 12 -b 300 -a 0.01 -c roc"); 		
+		runProcess(dir, BT, attr, train, valid, "-k 12 -b 300 -a 0.01"); 		
 		Path fsLogSrc = fs.getPath(tmpDir + File.separator + "log.txt");
 		Path fsLogDst = fs.getPath(tmpDir + File.separator + "log_fs.txt");
 		Path fsModelSrc = fs.getPath(tmpDir + File.separator + "model.bin");
@@ -439,12 +465,20 @@ public class InteractionTreeLearnerGAMMC{
 		// 5. Build a GAM for parent
  		Instances trainSet = InstancesReader.read(ainfo, train, "\t+", true);
 		Instances validSet = InstancesReader.read(ainfo, valid, "\t+", true);
+
 		timeStamp("Build a GAM for the parent node.");
+		
 		GAMLearner learner = new GAMLearner();
-		learner.setMetric(new AUC());
+		Metric metric;
+		if(regression == true)
+			metric = new RMSE();
+		else
+			metric = new AUC();
+		
+		learner.setMetric(metric);
 		learner.setLearningRate(0.01);
 		learner.setBaggingIters(0);
-		
+
 		//Create a copy of data with zeros instead of NaNs		
 		Instances trainGAM = trainSet.copy();
 		Instances validGAM = validSet.copy();
@@ -457,8 +491,13 @@ public class InteractionTreeLearnerGAMMC{
 			for(int a = 0; a < attrN; a++)
 				if(Double.isNaN(instance.getValue(a)))
 					instance.setValue(a, 0);
+	
+		GAM gam;
+		if(regression)
+			gam = learner.buildRegressor(trainGAM, validGAM, 100, 3);
+		else
+			gam = learner.buildClassifier(trainGAM, validGAM, 100, 3);
 		
-		GAM gam = learner.buildClassifier(trainGAM, validGAM, 100, 3);
 		double[] targetsValid = new double[validGAM.size()];
 		double[] predsValid = new double[validGAM.size()];
 		int vNo = 0;
@@ -468,10 +507,11 @@ public class InteractionTreeLearnerGAMMC{
 			vNo++;
 		}
 		
-		double rocParent = new AUC().eval(predsValid, targetsValid);
-		sb.append("Parent ROC: " + rocParent + "\n");
+		double parentScore = metric.eval(predsValid, targetsValid);
+		sb.append("Parent " + metric.toString() + ": " + parentScore + "\n");		
+
 		out = new PrintWriter(tmpDir + File.separator + "parent.txt");
-		out.println(rocParent);
+		out.println(parentScore);
 		out.flush();
 		out.close();
 		
@@ -498,7 +538,7 @@ public class InteractionTreeLearnerGAMMC{
 		timeStamp("Evaluate splits.");
 		int bestAtt = -1;
 		double bestSplit = -1;
-		double bestROC = -1;
+		double bestScore = metric.worstValue();
 		
 		for (int i = 0; i < candidateFeatures.size(); i++) {
 			int attIndex = ainfo.nameToId.get((candidateFeatureNames.get(i)));
@@ -544,29 +584,38 @@ public class InteractionTreeLearnerGAMMC{
 				double[] targets = new double[actual_valid_size];
 				double[] preds = new double[actual_valid_size];
 				vNo = 0;
-				GAM gamL = learner.buildClassifier(trainLeftGAM, validLeftGAM, 100, 3);
+				
+				GAM gamL;
+				if(regression)
+					gamL = learner.buildRegressor(trainLeftGAM, validLeftGAM, 100, 3);
+				else
+					gamL = learner.buildClassifier(trainLeftGAM, validLeftGAM, 100, 3);
 				for (Instance instance : validLeftGAM) {
 					targets[vNo] = instance.getTarget();
 					preds[vNo] = gamL.regress(instance);
 					vNo++;
 				}
 
-				GAM gamR = learner.buildClassifier(trainRightGAM, validRightGAM, 100, 3);
+				GAM gamR;
+				if(regression)
+					gamR = learner.buildRegressor(trainRightGAM, validRightGAM, 100, 3);
+				else
+					gamR = learner.buildClassifier(trainRightGAM, validRightGAM, 100, 3);
 				for (Instance instance : validRightGAM) {
 					targets[vNo] = instance.getTarget();
 					preds[vNo] = gamR.regress(instance);
 					vNo++;
 				}
 
-				double rocSplit = new AUC().eval(preds, targets);
+				double splitScore = metric.eval(preds, targets);
 				
 				out = new PrintWriter(tmpDir + File.separator + "split_" + split.feature.name + "_" + splitPoint + ".txt");
-				out.println(rocSplit);		
+				out.println(splitScore);		
 				out.flush();
 				out.close();
 				
-				if (rocSplit > bestROC) {
-					bestROC = rocSplit;
+				if (metric.isFirstBetter(splitScore, bestScore)) {
+					bestScore = splitScore;
 					bestAtt = attIndex;
 					bestSplit = splitPoint;
 				}
@@ -576,16 +625,15 @@ public class InteractionTreeLearnerGAMMC{
 	
 		//9. Final output: best split and its visualization
 		if (bestAtt >= 0) {
-			sb.append("Best ROC: " + bestROC + "\n");
-			if (bestROC > rocParent) {
+			sb.append("Best " + metric + ": " + bestScore + "\n");
+			if (metric.isFirstBetter(bestScore, parentScore)) {
 				sb.append("Best feature: " + ainfo.attributes.get(bestAtt).getName() + "\n");
 				sb.append("Best split: " + bestSplit + "\n");
 				if(weakOnly)
 					sb.append("Weak interactions only.\n");
 				// Visualize the splits
 				runProcess(dir, VIS_SPLIT, "BT_PLOTS", ainfo.attributes.get(bestAtt).getName(), bestSplit+"");
-			}
-			else {
+			} else {
 				visEffect(dir, attrfs12, train, valid, tmpDir, selectedFeatureNames, "v1");
 				visEffect(dir, attrfs12, valid, train, tmpDir, selectedFeatureNames, "v2");
 				runProcess(dir, VIS_MV, "BT_PLOTS");
@@ -610,7 +658,7 @@ public class InteractionTreeLearnerGAMMC{
 						List<Pair<String, String>> pairs, String suffix
 					  ) throws Exception{
 		// Here we build a large BT model. 
-		runProcess(dir, BT, attr, train, valid, "-b 300 -a 0.01 -c roc");
+		runProcess(dir, BT, attr, train, valid, "-b 300 -a 0.01");
 
 		// Run visualization
 		for (Pair<String, String> pair : pairs) {
@@ -631,7 +679,7 @@ public class InteractionTreeLearnerGAMMC{
 			Set<String> features, String suffix
 		  ) throws Exception{
 		// Here we build a large BT model
-		runProcess(dir, BT, attr, train, valid, "-b 300 -a 0.01 -c roc");
+		runProcess(dir, BT, attr, train, valid, "-b 300 -a 0.01");
 	
 		// Run visualization
 		for (String feat : features) {

@@ -6,8 +6,8 @@ SCRIPTPATH=`dirname $SCRIPT`
 source $SCRIPTPATH/env.config
 
 VERSION=`$AG_TRAIN -version 2> /dev/null | tail -1 | cut -f3 -d ' '`
-if [ $(version $VERSION) -lt $(version "2.5.1") ]; then
-    echo "Error: Old ag_train version. Need TreeExtra version 2.5.1 or higher."
+if [ $(version $VERSION) -lt $(version "2.5.5") ]; then
+    echo "Error: Old ag_train version. Need TreeExtra version 2.5.5 or higher."
     exit 1
 fi
 

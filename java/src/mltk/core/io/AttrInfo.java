@@ -30,4 +30,8 @@ public class AttrInfo {
 		this.nameToCol = new HashMap<String, Integer>();
 		this.nameToId = new HashMap<String, Integer>();
 	}
+	
+	public int getClsCol() {
+		return clsAttr.getColumn();
+	}
 }

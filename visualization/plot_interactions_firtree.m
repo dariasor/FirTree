@@ -36,14 +36,14 @@ for iF=1:numel(files)
     [density]=dlmread(fullfile(folder, fn2),'\t',4,0);
 
     if index(fn, "chosen") == 1
-        make_interaction_plot_lrtree(xvalues, xcounts, yvalues, ycounts, values, density, var2, fn, [legendtxt1; legendtxt2]);
+        make_interaction_plot_firtree(xvalues, xcounts, yvalues, ycounts, values, density, var2, fn, [legendtxt1; legendtxt2]);
         print(gcf,'-depsc',[folder fn '.eps']);
     else
     
-        make_interaction_plot_lrtree(xvalues, xcounts, yvalues, ycounts, values, density, var2, fn);
+        make_interaction_plot_firtree(xvalues, xcounts, yvalues, ycounts, values, density, var2, fn);
         print(gcf,'-depsc',[folder fn '.eps']);
 
-        make_interaction_plot_lrtree(yvalues, ycounts, xvalues, xcounts, values', density', var1, ['Flipped ' fn]);
+        make_interaction_plot_firtree(yvalues, ycounts, xvalues, xcounts, values', density', var1, ['Flipped ' fn]);
         print(gcf,'-depsc',[folder fn '.flipped.eps']);
     end
 

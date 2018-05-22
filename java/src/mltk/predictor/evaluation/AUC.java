@@ -104,4 +104,7 @@ public class AUC extends Metric {
 		return area;
 	}
 
+	public String toString() {
+		return "AUC";
+	}
 }
