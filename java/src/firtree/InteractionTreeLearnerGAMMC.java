@@ -79,8 +79,8 @@ public class InteractionTreeLearnerGAMMC{
 		@Argument(name = "-a", description = "alpha (default: 0.0, full tree)")
 		double alpha = 0.0;
 		
-		@Argument(name = "-l", description = "leaf size (default: 15K)")
-		int leafSize = 15000;
+		@Argument(name = "-l", description = "leaf size (default: 70)")
+		int leafSize = 70;
 	
 		@Argument(name = "-w", description = "strong interaction threshold (default: 7)")
 		double wThreshold = 7;
@@ -429,7 +429,9 @@ public class InteractionTreeLearnerGAMMC{
 		// 2. Fast feature selection
 		timeStamp("Select 12 features for AG.");
 		// Here ltr.attr -> ltr.fs.attr
-		runProcess(dir, BT, attr, train, valid, "-k 12 -b 300 -a 0.01"); 		
+
+  		runProcess(dir, BT, attr, train, valid, "-k 12 -b 300 -a 0.01"); 		
+ 
 		Path fsLogSrc = fs.getPath(tmpDir + File.separator + "log.txt");
 		Path fsLogDst = fs.getPath(tmpDir + File.separator + "log_fs.txt");
 		Path fsModelSrc = fs.getPath(tmpDir + File.separator + "model.bin");
@@ -450,10 +452,9 @@ public class InteractionTreeLearnerGAMMC{
 
 		// 4. Choose candidates
 		String interactionGraph = tmpDir + File.separator + "list.txt";
-		Triple<List<String>, Boolean, Set<String>> gcret = getCandidates(interactionGraph, opts.wThreshold);
+		Pair<List<String>, Boolean> gcret = getCandidates(interactionGraph, opts.wThreshold);
 		List<String> candidateFeatureNames = gcret.v1;
 		boolean weakOnly = gcret.v2; 
-		Set<String> selectedFeatureNames = gcret.v3;
 		
 		PrintWriter out = new PrintWriter(tmpDir + File.separator + "candidates.txt");
 		for (String name : candidateFeatureNames) {
@@ -634,16 +635,20 @@ public class InteractionTreeLearnerGAMMC{
 				// Visualize the splits
 				runProcess(dir, VIS_SPLIT, "BT_PLOTS", ainfo.attributes.get(bestAtt).getName(), bestSplit+"");
 			} else {
-				visEffect(dir, attrfs12, train, valid, tmpDir, selectedFeatureNames, "v1");
-				visEffect(dir, attrfs12, valid, train, tmpDir, selectedFeatureNames, "v2");
+				String coreFeaturesFileName = tmpDir + File.separator + "core_features.txt";
+				Set<String> coreFeatureNames = getCoreFeatures(coreFeaturesFileName);
+				visEffect(dir, attrfs12, train, valid, tmpDir, coreFeatureNames, "v1");
+				visEffect(dir, attrfs12, valid, train, tmpDir, coreFeatureNames, "v2");
 				runProcess(dir, VIS_MV, "BT_PLOTS");
 				sb.append("No improvement found.\n");
 				printLog(sb);
 				return new InteractionTreeLeaf();
 			}
 		} else {
-			visEffect(dir, attrfs12, train, valid, tmpDir, selectedFeatureNames, "v1");
-			visEffect(dir, attrfs12, valid, train, tmpDir, selectedFeatureNames, "v2");
+			String coreFeaturesFileName = tmpDir + File.separator + "core_features.txt";
+			Set<String> coreFeatureNames = getCoreFeatures(coreFeaturesFileName);
+			visEffect(dir, attrfs12, train, valid, tmpDir, coreFeatureNames, "v1");
+			visEffect(dir, attrfs12, valid, train, tmpDir, coreFeatureNames, "v2");
 			runProcess(dir, VIS_MV, "BT_PLOTS");
 			sb.append("No interactions found.\n");
 			printLog(sb);
@@ -775,10 +780,9 @@ public class InteractionTreeLearnerGAMMC{
 		return candidates;
 	}
 	
-	protected static Triple<List<String>, Boolean, Set<String>> getCandidates(String interactionGraph, double wThreshold) 
+	protected static Pair<List<String>, Boolean> getCandidates(String interactionGraph, double wThreshold) 
 			throws Exception {
 		List<String> candidates = new ArrayList<>();
-		Set<String> selectFeats = new HashSet<>();
 		Map<String, Map<String, Double>> graph = new HashMap<>();
 
 		BufferedReader br = new BufferedReader(new FileReader(interactionGraph));
@@ -790,13 +794,11 @@ public class InteractionTreeLearnerGAMMC{
 			String[] data = line.split("\\s+");
 			String x = data[0];
 			String y = data[1];
-			selectFeats.add(x);
-			selectFeats.add(y);
 			if (data[2].indexOf("inf") >= 0 || data[2].indexOf("nan") >= 0) {
 				continue;
 			}
 			double w = Double.parseDouble(data[2]);
-			if (w >= 3) {
+			if (w >= 3.0) {
 				if (!graph.containsKey(x)) {
 					graph.put(x, new HashMap<String, Double>());
 				}
@@ -815,12 +817,12 @@ public class InteractionTreeLearnerGAMMC{
 
 		for (String node : graph.keySet()) {
 			Map<String, Double> adjList = graph.get(node);
+			if(adjList.values().size() >= 2) {
+				weakCands.add(node);
+			}
 			for (double w : adjList.values()) {
 				if(w >= wThreshold) {
 					strongCands.add(node);
-				}
-				if(w >= 3) {
-					weakCands.add(node);
 				}
 			}
 		}
@@ -863,7 +865,25 @@ public class InteractionTreeLearnerGAMMC{
 			graph.remove(bestNode);
 		}
 
-		return new Triple<List<String>, Boolean, Set<String>> (candidates, weakOnly, selectFeats);
+		return new Pair<List<String>, Boolean> (candidates, weakOnly);
 	}
 	
+
+	protected static Set<String> getCoreFeatures(String coreFeaturesFileName) throws Exception{
+		
+		Set<String> coreFeatures = new HashSet<>();
+
+		BufferedReader br = new BufferedReader(new FileReader(coreFeaturesFileName));
+		for (;;) {
+			String line = br.readLine();
+			if (line == null) {
+				break;
+			}
+			String[] data = line.split("\\s+");
+			coreFeatures.add(data[0]);		
+		}
+		br.close();
+		
+		return coreFeatures;
+	}
 }
