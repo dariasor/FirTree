@@ -64,7 +64,7 @@ public class InteractionTreeLearnerGAMMC{
 		@Argument(name = "-p", description = "env.config directory", required = true)
 		String prefix = null;
 		
-		@Argument(name = "-d", description = "working directory", required = true)
+		@Argument(name = "-d", description = "FirTree directory", required = true)
 		String dir = "";
 		
 		@Argument(name = "-r", description = "attribute file", required = true)
@@ -73,18 +73,12 @@ public class InteractionTreeLearnerGAMMC{
 		@Argument(name = "-t", description = "training set", required = true)
 		String trainPath = "";
 		
-		@Argument(name = "-o", description = "output tree structure file")
-		String outputPath = "";
-		
 		@Argument(name = "-a", description = "alpha (default: 0.0, full tree)")
 		double alpha = 0.0;
 		
 		@Argument(name = "-l", description = "leaf size (default: 70)")
 		int leafSize = 70;
 	
-		@Argument(name = "-w", description = "strong interaction threshold (default: 7)")
-		double wThreshold = 7;
-		
 		@Argument(name = "-g", description = "name of the attribute with the group id (default: \"\")")
 		String group = "None";
 		
@@ -136,7 +130,7 @@ public class InteractionTreeLearnerGAMMC{
 			
 		File dir = new File(opts.dir);
 		if (!dir.exists()) {
-			System.err.println("Error: the working directory " + opts.dir + " does not exist.");
+			System.err.println("Error: the FirTree directory " + opts.dir + " does not exist.");
 			System.exit(1);
 		}		
 
@@ -146,15 +140,6 @@ public class InteractionTreeLearnerGAMMC{
 			System.exit(1);
 		}
 
-		if(opts.outputPath.isEmpty())
-			opts.outputPath = opts.dir + "/tree.txt";
-		File outFile = new File(opts.outputPath);
-		
-		if (outFile.exists() && !outFile.isFile()) {
-			System.err.println("Error: the output file " + opts.outputPath + " is not a regular file.");
-			System.exit(1);
-		}
-		
 		FileWriter logFile = new FileWriter(opts.dir + "/treelog.txt", false);
 		logFile.close();
 				
@@ -201,14 +186,10 @@ public class InteractionTreeLearnerGAMMC{
 		data_out.flush();
 		data_out.close();
 
-		InteractionTree tree = app.build(data_size, zero_size);
+		app.build(data_size, zero_size);
 		long end = System.currentTimeMillis();
 		
 		System.out.println("Finished building tree in " + (end - start) / 1000.0 + " (s).");
-		PrintWriter out = new PrintWriter(opts.outputPath);
-		tree.writeStructure(out);
-		out.flush();
-		out.close();
 	}
 	
 	public void printLog(StringBuilder text) throws Exception{
@@ -219,18 +200,16 @@ public class InteractionTreeLearnerGAMMC{
 		log.close();
 	}
 
-	public InteractionTree build(int data_size, int zero_size) throws Exception {
+	public void build(int data_size, int zero_size) throws Exception {
 		int limit = Math.max((int)(data_size * opts.alpha), opts.leafSize);
-		InteractionTree tree = new InteractionTree();
 		Map<InteractionTreeNode, String> prefix = new HashMap<>();
-		tree.root = createNode(data_size, zero_size, "Root", limit);
-		prefix.put(tree.root, "Root");
+		InteractionTreeNode root = createNode(data_size, zero_size, "Root", limit);
+		prefix.put(root, "Root");
 		Queue<InteractionTreeNode> q = new Queue<>();
-		q.enqueue(tree.root);
+		q.enqueue(root);
 		
 		while (!q.isEmpty()) {
 			InteractionTreeNode node = q.dequeue();
-
 			
 			if (!node.isLeaf()) {
 				String pre = prefix.get(node);
@@ -278,11 +257,8 @@ public class InteractionTreeLearnerGAMMC{
 				
 				q.enqueue(interiorNode.left);
 				q.enqueue(interiorNode.right);
-			}
-			
-		}
-		
-		return tree;
+			}			
+		}		
 	}
 	
 	protected static void split(Instances instances, int attIndex, double splitPoint, 
@@ -333,6 +309,10 @@ public class InteractionTreeLearnerGAMMC{
 		outLeft.close();
 		outRight.flush();
 		outRight.close();
+		
+		//delete the data from the internal node
+		File data = new File(dataFile);
+		data.delete();
 		
 		return sizes;
 	}
@@ -388,6 +368,7 @@ public class InteractionTreeLearnerGAMMC{
 		String validAG = tmpDir + File.separator + "fir.valid.ag";
 		String train = tmpDir + File.separator + "fir.train.dta";
 		String valid = tmpDir + File.separator + "fir.valid.dta";
+		String core = tmpDir + File.separator + "core_features.txt";
 		int tar_col = ainfo.clsAttr.getColumn() + 1;		
 
  		FileSystem fs = FileSystems.getDefault();
@@ -428,9 +409,7 @@ public class InteractionTreeLearnerGAMMC{
 		
 		// 2. Fast feature selection
 		timeStamp("Select 12 features for AG.");
-		// Here ltr.attr -> ltr.fs.attr
-
-  		runProcess(dir, BT, attr, train, valid, "-k 12 -b 300 -a 0.01"); 		
+		runProcess(dir, BT, attr, train, valid, "-k 12 -b 300 -a 0.01"); 		
  
 		Path fsLogSrc = fs.getPath(tmpDir + File.separator + "log.txt");
 		Path fsLogDst = fs.getPath(tmpDir + File.separator + "log_fs.txt");
@@ -449,10 +428,23 @@ public class InteractionTreeLearnerGAMMC{
 		Path agModelDst = fs.getPath(tmpDir + File.separator + "model_ag.bin");
 		Files.copy(agLogSrc, agLogDst, StandardCopyOption.REPLACE_EXISTING);
 		Files.copy(agModelSrc, agModelDst, StandardCopyOption.REPLACE_EXISTING);
+		
+		//add first column from core_features.txt to treelog.txt		
+		sb.append("Core features:\n");
+		BufferedReader br = new BufferedReader(new FileReader(core), 65535);
+		for (;;) {
+			String line = br.readLine();
+			if (line == null) {
+				break;
+			}
+			String[] data = line.split("\t");
+			sb.append("\t" + data[0] + "\n");
+		}
+		br.close();
 
 		// 4. Choose candidates
 		String interactionGraph = tmpDir + File.separator + "list.txt";
-		Pair<List<String>, Boolean> gcret = getCandidates(interactionGraph, opts.wThreshold);
+		Pair<List<String>, Boolean> gcret = getCandidates(interactionGraph);
 		List<String> candidateFeatureNames = gcret.v1;
 		boolean weakOnly = gcret.v2; 
 		
@@ -780,7 +772,7 @@ public class InteractionTreeLearnerGAMMC{
 		return candidates;
 	}
 	
-	protected static Pair<List<String>, Boolean> getCandidates(String interactionGraph, double wThreshold) 
+	protected static Pair<List<String>, Boolean> getCandidates(String interactionGraph) 
 			throws Exception {
 		List<String> candidates = new ArrayList<>();
 		Map<String, Map<String, Double>> graph = new HashMap<>();
@@ -821,7 +813,7 @@ public class InteractionTreeLearnerGAMMC{
 				weakCands.add(node);
 			}
 			for (double w : adjList.values()) {
-				if(w >= wThreshold) {
+				if(w >= 7) {
 					strongCands.add(node);
 				}
 			}
