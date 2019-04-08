@@ -10,7 +10,7 @@ import mltk.core.Attribute;
  * Structure for information on attributes in the data: 
  * list of active attributes, class attribute,  
  * map from names to columns in the data file for all attributes. Columns start with zero
- * map from ids to columns for active attributes
+ * map from names to ids for active attributes
  * 
  * @author Daria Sorokina
  * 
