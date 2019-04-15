@@ -176,9 +176,14 @@ public class InteractionTreeLearnerGAMMC{
 
  		for (String line = br.readLine(); line != null; data_size++) {
  			String[] data = line.split("\t+");
-			double clsValue = Double.parseDouble(data[clsColNo]);
-			if(clsValue == 0)
-				zero_size++;
+ 			try {
+ 				double clsValue = Double.parseDouble(data[clsColNo]);
+ 				if(clsValue == 0)
+ 					zero_size++;
+			} catch(java.lang.NumberFormatException e) {
+				System.err.println("Error: The response column contains a text value \"" + data[clsColNo] + "\" in line " + (data_size + 1));
+				System.exit(1);
+			}	
  			data_out.write(line + "\n");
 			line = br.readLine();
 		}
