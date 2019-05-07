@@ -160,10 +160,10 @@ public class RegressionOnLeaves {
 
 			BufferedWriter modelTrans_out = new BufferedWriter(new FileWriter(dataNodePath + "/model_polydegree_" + opts.poly_degree + ".txt"));
 
-			modelTrans_out.write("-1" + "\t" + "intercept" + "\t" + ols_trans_intercept + "\n");
+			modelTrans_out.write("intercept\t" + ols_trans_intercept + "\n");
 
 			for (int i_attr = 0; i_attr < col_num; i_attr++) {
-				modelTrans_out.write(ainfo_leaf.attributes.get(i_attr).getColumn() + "\t" + ainfo_leaf.attributes.get(i_attr).getName() + "\t");
+				modelTrans_out.write(ainfo_leaf.idToName(i_attr) + "\t");
 				for(int i_poly = 0; i_poly < opts.poly_degree; i_poly++){
 					modelTrans_out.write(ols_trans_coef[i_attr * opts.poly_degree + i_poly] + "\t" );
 				}

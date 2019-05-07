@@ -34,4 +34,12 @@ public class AttrInfo {
 	public int getClsCol() {
 		return clsAttr.getColumn();
 	}
+	
+	public int idToCol(int id) {
+		return attributes.get(id).getColumn();
+	}
+	
+	public String idToName(int id) {
+		return attributes.get(id).getName();
+	}
 }

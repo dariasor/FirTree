@@ -254,14 +254,11 @@ public class InteractionTreeLearnerGAMMC{
 				lThread.join();
 				rThread.join();
 				
-				interiorNode.left = lThread.node;
-				interiorNode.right = rThread.node;
+				prefix.put(lThread.node, pre + "_L");
+				prefix.put(rThread.node, pre + "_R");
 				
-				prefix.put(interiorNode.left, pre + "_L");
-				prefix.put(interiorNode.right, pre + "_R");
-				
-				q.enqueue(interiorNode.left);
-				q.enqueue(interiorNode.right);
+				q.enqueue(lThread.node);
+				q.enqueue(rThread.node);
 			}			
 		}		
 	}
@@ -652,7 +649,7 @@ public class InteractionTreeLearnerGAMMC{
 			return new InteractionTreeLeaf();
 		}
 		printLog(sb);
-		return new InteractionTreeInteriorNode(bestAtt, bestSplit);
+		return new InteractionTreeInteriorNode();
 		
 	}
 	

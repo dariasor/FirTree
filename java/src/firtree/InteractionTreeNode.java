@@ -18,17 +18,5 @@ public abstract class InteractionTreeNode {
 	 * @return <code>true</code> if the node is a leaf.
 	 */
 	public abstract boolean isLeaf();
-	
-	public abstract void writeStructure(PrintWriter out) throws Exception;
-
-	public abstract void readStructure(BufferedReader in) throws Exception;
-	
-	public abstract void writeModel(PrintWriter out) throws Exception;
-
-	public abstract void readModel(BufferedReader in) throws Exception;
-	
-	public abstract void getLeaves(List<InteractionTreeLeaf> leaves);
-	
-	public abstract void dfs(List<InteractionTreeNode> nodes);
-	
+		
 }
