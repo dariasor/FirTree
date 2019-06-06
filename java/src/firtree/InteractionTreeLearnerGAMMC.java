@@ -324,26 +324,30 @@ public class InteractionTreeLearnerGAMMC{
 		System.out.println("TIMESTAMP >>>> ".concat(tmpDate.toString()).concat(": ").concat(msg));
 	}
 
-	private void subsample(int data_size, int zero_size, int train_size, int valid_size, File dir, String dtaAG, int tar_col, int seed) throws Exception	{
+	private void subsample(int data_size, int zero_size, double train_coef, int train_abs, int valid_abs, File dir, String dtaAG, int tar_col, int seed) throws Exception	{
+		
 		if (zero_size <= data_size / 2)
 		{
+			int train_size =  Math.min((int)(data_size * train_coef), train_abs);
+			int valid_size =  Math.min(data_size - train_size, valid_abs);
+			
 			double portion_train = (double) train_size / data_size;
 			double portion_valid = (double) valid_size /  data_size;
 			runProcess(dir, RND, "--input " + dtaAG + " --stem fir --group-method 1 --group " + group_col + 
 							" --valid " + portion_valid + " --train " + portion_train + " --rand " + seed);
 		} else 
-		{
-			double portion_zero_train = train_size / (zero_size * 2.0);
-			double portion_nonzero_train = train_size /((data_size - zero_size) * 2.0);
-			double portion_zero_valid = valid_size / (zero_size * 2.0);
-			double portion_nonzero_valid = valid_size /((data_size - zero_size) * 2.0);
+		{			
+			int nonzero_size = data_size - zero_size;			
+			int nonzero_train_size = (int)Math.min(nonzero_size * train_coef, train_abs / 2);
+			int zero_train_size = (int)Math.min(zero_size * train_coef, train_abs - nonzero_train_size);
+			int nonzero_valid_size = (int)Math.min(nonzero_size - nonzero_train_size, valid_abs / 2);
+			int zero_valid_size = (int)Math.min(zero_size - zero_train_size, valid_abs - nonzero_valid_size);			
 			
-			//if not enough non-zero data, split it between train and validation according to the originally planned proportions
-			if (portion_nonzero_train + portion_nonzero_valid > 1.0)
-			{
-				portion_nonzero_train = (double) train_size / (train_size + valid_size);
-				portion_nonzero_valid = 1 - portion_nonzero_train;
-			}
+			double portion_zero_train = zero_train_size / (double) zero_size;
+			double portion_nonzero_train = nonzero_train_size / (double) nonzero_size;
+			double portion_zero_valid = zero_valid_size / (double) zero_size;
+			double portion_nonzero_valid = nonzero_valid_size / (double) nonzero_size;
+			
 			runProcess(dir, RND, "--input " + dtaAG + " --stem fir --group-method 1 --group " + group_col + " --target " + tar_col +
 					" --valid " + portion_nonzero_valid + " --train " + portion_nonzero_train + 
 					" --valid-zero " + portion_zero_valid + " --train-zero " + portion_zero_train + " --rand " + seed);		
@@ -379,10 +383,7 @@ public class InteractionTreeLearnerGAMMC{
 		// 1.1. Create datasets for ag
  		
  		timeStamp("Prepare train and test data for AG.");
-		int train_size =  Math.min(data_size / 3, 30000);
-		int valid_size =  Math.min(data_size - train_size, 500000);
-
-		subsample(data_size, zero_size, train_size, valid_size, dir, dtaAG, tar_col, 1);
+		subsample(data_size, zero_size, 1.0/3.0, 30000, 500000, dir, dtaAG, tar_col, 1);
 		
 		Files.move(fs.getPath(train), fs.getPath(trainAG), StandardCopyOption.REPLACE_EXISTING);
 		Files.move(fs.getPath(valid), fs.getPath(validAG), StandardCopyOption.REPLACE_EXISTING);
@@ -404,10 +405,7 @@ public class InteractionTreeLearnerGAMMC{
 
 		// 1.2 Create datasets for bt and gam 
 		timeStamp("Prepare train and test data for BT and GAM.");
-		train_size =  Math.min((int)(data_size * 0.6667), 200000);
-		valid_size =  Math.min(data_size - train_size, 500000);
-
-		subsample(data_size, zero_size, train_size, valid_size, dir, dtaAG, tar_col, 2);
+		subsample(data_size, zero_size, 2.0/3.0, 200000, 500000, dir, dtaAG, tar_col, 2);
 		
 		// 2. Fast feature selection
 		timeStamp("Select 12 features for AG.");
@@ -419,6 +417,10 @@ public class InteractionTreeLearnerGAMMC{
 		Path fsModelDst = fs.getPath(tmpDir + File.separator + "model_fs.bin");
 		Files.copy(fsLogSrc, fsLogDst, StandardCopyOption.REPLACE_EXISTING);
 		Files.copy(fsModelSrc, fsModelDst, StandardCopyOption.REPLACE_EXISTING);
+		//clean up large unneeded preds.txt file
+		File predsFile = new File(tmpDir + File.separator + "preds.txt");
+		predsFile.delete();
+
 
 		// 3. Run ag and get interactions
 		timeStamp("Run AG with selected features on the small train set.");
@@ -615,7 +617,6 @@ public class InteractionTreeLearnerGAMMC{
 					bestSplit = splitPoint;
 				}
 			}
-			
 		}
 	
 		//9. Final output: best split and its visualization
@@ -672,6 +673,10 @@ public class InteractionTreeLearnerGAMMC{
 		Path btModelDst = fs.getPath(tmpDir + File.separator + "model_bt." + suffix + ".bin");
 		Files.move(btLogSrc, btLogDst, StandardCopyOption.REPLACE_EXISTING);
 		Files.move(btModelSrc, btModelDst, StandardCopyOption.REPLACE_EXISTING);
+
+		//clean up large unneeded preds.txt file
+		File predsFile = new File(tmpDir + File.separator + "preds.txt");
+		predsFile.delete();
 	}
 	
 	protected void visEffect( File dir, String attr, String train, String valid, String tmpDir, 
@@ -693,6 +698,10 @@ public class InteractionTreeLearnerGAMMC{
 		Path btModelDst = fs.getPath(tmpDir + File.separator + "model_bt." + suffix + ".bin");
 		Files.move(btLogSrc, btLogDst, StandardCopyOption.REPLACE_EXISTING);
 		Files.move(btModelSrc, btModelDst, StandardCopyOption.REPLACE_EXISTING);
+
+		//clean up large unneeded preds.txt file
+		File predsFile = new File(tmpDir + File.separator + "preds.txt");
+		predsFile.delete();
 	
 	}
 	
@@ -811,7 +820,7 @@ public class InteractionTreeLearnerGAMMC{
 
 		for (String node : graph.keySet()) {
 			Map<String, Double> adjList = graph.get(node);
-			if(adjList.values().size() >= 2) {
+			if(adjList.values().size() >= 3) {
 				weakCands.add(node);
 			}
 			for (double w : adjList.values()) {
