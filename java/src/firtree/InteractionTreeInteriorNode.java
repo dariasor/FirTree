@@ -23,4 +23,8 @@ public class InteractionTreeInteriorNode extends InteractionTreeNode {
 		return false;
 	}
 	
+	public InteractionTreeInteriorNode(int attIndex, double splitPoint) {
+		this.attIndex = attIndex;
+		this.splitPoint = splitPoint;
+	}
 }

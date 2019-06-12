@@ -650,7 +650,7 @@ public class InteractionTreeLearnerGAMMC{
 			return new InteractionTreeLeaf();
 		}
 		printLog(sb);
-		return new InteractionTreeInteriorNode();
+		return new InteractionTreeInteriorNode(bestAtt, bestSplit);
 		
 	}
 	
