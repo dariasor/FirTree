@@ -341,7 +341,7 @@ public class InteractionTreeLearnerGAMMC{
 			int nonzero_train_size = (int)Math.min(nonzero_size * train_coef, train_abs / 2);
 			int zero_train_size = (int)Math.min(zero_size * train_coef, train_abs - nonzero_train_size);
 			int nonzero_valid_size = (int)Math.min(nonzero_size - nonzero_train_size, valid_abs / 2);
-			int zero_valid_size = (int)Math.min(zero_size - zero_train_size, valid_abs - nonzero_valid_size);			
+			int zero_valid_size = (int)Math.min(zero_size - zero_train_size, Math.min(valid_abs - nonzero_valid_size, (int)(nonzero_valid_size * ((double)zero_train_size / nonzero_train_size))));			
 			
 			double portion_zero_train = zero_train_size / (double) zero_size;
 			double portion_nonzero_train = nonzero_train_size / (double) nonzero_size;
