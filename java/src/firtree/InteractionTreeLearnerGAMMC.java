@@ -180,6 +180,10 @@ public class InteractionTreeLearnerGAMMC{
  				double clsValue = Double.parseDouble(data[clsColNo]);
  				if(clsValue == 0)
  					zero_size++;
+ 				if(!app.regression && ((clsValue < 0) || (clsValue > 1))) {
+ 					System.err.println("Error: The response column contains value \"" + data[clsColNo] + "\" in line " + (data_size + 1) + ". Not compatible with AUC metric.");
+ 					System.exit(1); 					
+ 				}
 			} catch(java.lang.NumberFormatException e) {
 				System.err.println("Error: The response column contains a text value \"" + data[clsColNo] + "\" in line " + (data_size + 1));
 				System.exit(1);
