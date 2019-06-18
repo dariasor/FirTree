@@ -559,7 +559,6 @@ public class InteractionTreeLearnerGAMMC{
 				Instances trainRightGAM = trainRight.copy();
 				Instances validRightGAM = validRight.copy();				
 				//8.2.0 Replace missing values with zeros
-				timeStamp("Scan NaNs.");
 				for(Instance instance : trainLeftGAM)
 					for(int a = 0; a < attrN; a++)
 						if(Double.isNaN(instance.getValue(a)))
@@ -577,11 +576,11 @@ public class InteractionTreeLearnerGAMMC{
 						if(Double.isNaN(instance.getValue(a)))
 							instance.setValue(a, 0);
 				
+				//8.2.1 Build GAM models
 				int actual_valid_size = validLeftGAM.size() + validRightGAM.size();
 				double[] targets = new double[actual_valid_size];
 				double[] preds = new double[actual_valid_size];
 				vNo = 0;
-				
 				GAM gamL;
 				if(regression)
 					gamL = learner.buildRegressor(trainLeftGAM, validLeftGAM, 100, 3);
