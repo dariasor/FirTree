@@ -18,7 +18,7 @@ then
 	TRAIN_FILE=$3
 	VALID_FILE=$4
 else
-	echo "usage: interaction.sh <attr> <attr.fs> <train> <valid>"
+	echo "usage: fast_interactions.sh <attr> <attr.fs> <train> <valid>"
 	exit 1
 fi
 
@@ -29,37 +29,37 @@ PARSE_PARAMS=$PYTHON_BIN/parse_params.py
 PARSE_PERFORMANCE=$PYTHON_BIN/parse_performance.py
 PARSE_INTERACTIONS=$PYTHON_BIN/parse_interactions.py
 GET_BEST_PARAMS=$PYTHON_BIN/get_best_params.py
-GET_B=$PYTHON_BIN/get_b.py
 
 $AG_TRAIN -t $TRAIN_FILE -v $VALID_FILE -r $ATTR_FILE -s layered > /dev/null
 
+
 while :
 do
-	$PYTHON $PARSE_ACTION log.txt > parsed_action.txt
-	PARAMS=`tail -1 parsed_action.txt`
-	ACTION=`head -1 parsed_action.txt`
-	if [ $ACTION = "ag_save" ]
-	then
-		$PYTHON $GET_BEST_PARAMS log.txt performance.txt > best_params.txt
-		IFCONV=`head -1 best_params.txt`
-		PARAMS=`tail -1 best_params.txt`
-		if [ $IFCONV = "True" ]
-		then
-			$AG_SAVE $PARAMS > /dev/null
-			break
-		else
-			$PYTHON $GET_B log.txt > b.txt
-			B=`head -1 b.txt`
-			$AG_EXPAND $B > /dev/null
-		fi
-	elif [ $ACTION = "ag_expand" ]
-	then
-		$AG_EXPAND $PARAMS > /dev/null
-	else
-		echo "ag_expand has not finished properly"
-		exit 1
-	fi
+        $PYTHON $PARSE_ACTION log.txt > parsed_action.txt
+        PARAMS=`tail -1 parsed_action.txt`
+        ACTION=`head -1 parsed_action.txt`
+        if [ $ACTION = "ag_save" ]
+        then
+                $AG_SAVE $PARAMS > /dev/null
+                break
+        elif [ $ACTION = "ag_expand" ]
+        then
+                $PYTHON $GET_BEST_PARAMS log.txt > best_params.txt
+                IFCONV=`head -1 best_params.txt`
+                BEST_PARAMS=`tail -1 best_params.txt`
+                if [ $IFCONV = "True" ]
+                then
+                    $AG_EXPAND $BEST_PARAMS > /dev/null
+                else
+                    $AG_SAVE $BEST_PARAMS > /dev/null
+                    break
+                fi
+        else
+                echo "ag_train or ag_expand has not finished properly"
+                exit 1
+        fi
 done
+
 
 $PYTHON $PARSE_PARAMS log.txt > params_fs.txt
 PARAMS_FS=`tail -1 params_fs.txt`

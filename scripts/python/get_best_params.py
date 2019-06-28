@@ -1,106 +1,40 @@
 import sys
 
-if len(sys.argv) != 3:
-	sys.exit("usage: " + sys.argv[0] + " <log.txt> <performance.txt>")
+if len(sys.argv) != 2:
+	sys.exit("usage: " + sys.argv[0] + " <log.txt> ")
 lines = []
 f = open(sys.argv[1], "r")
 for line in f:
 	lines.append(line.rstrip())
 lines.reverse()
 count = -1
+rec_params = {}
+
 for i in range(len(lines)):
 	line = lines[i]
-	if line.startswith("Suggested action: ag_save"):
+	if line.startswith("Suggested action: ag_expand"):
 		count = i
+		terms = line.split(" ");
+		for termNo in range(4, len(terms), 2):
+			rec_params[terms[termNo - 1]] = terms[termNo]
 		break
 data = lines[count + 4].strip().split(" = ")
-n = int(data[1])
+best_n = data[1]
 data = lines[count + 5].strip().split(" = ")
-alpha = data[1]
+best_alpha = data[1]
 
-d = {}
-cflag = {}  # flags for convergence
+do_expand = True
+if "-n" in rec_params and int(rec_params["-n"]) > 16:
+	del rec_params["-n"]
+	if not rec_params:
+		print "False"
+		print "-n " + best_n + " -a " + best_alpha
+		do_expand = False
+if do_expand:
+	print "True"
+	param_str = ""
+	for key in rec_params:
+		param_str += key + " " + rec_params[key] + " "
+	print param_str
 
-f = open(sys.argv[2], 'r')
-pLines = f.readlines()
-for line in pLines:
-	if line.strip() == "":
-		break
-	else:
-		data = line.strip().split()
-		if data[1] not in d:
-			d[data[1]] = {}
-			cflag[data[1]] = {}
-		d[data[1]][data[0]] = float(data[2])
-		if int(data[3]):
-			cflag[data[1]][data[0]] = True
-		else:
-			cflag[data[1]][data[0]] = False
-
-# build up the overfitting zone
-rownames = ["0.5", "0.2", "0.1", "0.05", "0.02", "0.01", "0.005", "0.002", "0.001", "0.0005", "0.0002", "0.0001", "0.00005", "0.00002", "0.00001"]
-cut = 0
-for cut in range(len(rownames)):
-	if not rownames[cut] in d['1']:
-		break;
-rownames = rownames[0:cut]
-if n>= 16:
-	colnames = ["1", "2", "3", "4", "6", "8", "16"]
-else:
-	colnames = ["1", "2", "3", "4", "6", "8"]
-
-# filter out the overfitting cases
-overfitting = {}
-for i in colnames:
-	overfitting[i] = {}
-for i in range(len(colnames)):
-	for j in range(len(rownames)):
-		overfitting[colnames[i]][rownames[j]] = False
-		if i > 0:
-			if (overfitting[colnames[i-1]][rownames[j]]) or (d[colnames[i]][rownames[j]] > d[colnames[i-1]][rownames[j]]):
-				overfitting[colnames[i]][rownames[j]] = True
-		if j > 0:
-			if (overfitting[colnames[i]][rownames[j-1]]) or (d[colnames[i]][rownames[j]] > d[colnames[i]][rownames[j-1]]):
-				overfitting[colnames[i]][rownames[j]] = True
-for i in colnames:
-	for j in rownames:
-		if overfitting[i][j]:
-			d[i][j] = 1   # set overfitting values to 1 to avoid selection (assuming targets are between 0 and 1, so RMS always < 1)
-
-bestRMS6 = min(d['6'].values())
-bestRMS8 = min(d['8'].values())
-if n >= 16:   # if recommended n is greater than 16, set n = 16
-	bestRMS16 = min(d['16'].values())
-	d16 = d['16']
-	bestAlpha = None
-	for key in d16:
-		if d16[key] == bestRMS16:
-			bestAlpha = key
-			break
-	print cflag['16'][bestAlpha]   # print if convergent
-	print "-a " + bestAlpha + " -n 16"
-elif n >= 8:  # if recommended n is between 8 and 16, select itself
-	print cflag[str(n)][alpha]
-	print "-a " + alpha + " -n " + str(n)
-elif (bestRMS8 <= bestRMS6 + 0.001) and (bestRMS8 < 1):  # if recommended n is too small, choose n = either 6 or 8
-	d8 = d['8']
-	bestAlpha = None
-	for key in d8:
-		if d8[key] == bestRMS8:
-			bestAlpha = key
-			break
-	print cflag['8'][bestAlpha]
-	print "-a " + bestAlpha + " -n 8"
-elif bestRMS6 < 1:  # 
-	d6 = d['6']
-	bestAlpha = None
-	for key in d6:
-		if d6[key] == bestRMS6:
-			bestAlpha = key
-			break
-	print cflag['6'][bestAlpha]
-	print "-a " + bestAlpha + " -n 6"
-else:
-	print cflag['6']['0.5']
-	print "-a 0.5 -n 6"
 
