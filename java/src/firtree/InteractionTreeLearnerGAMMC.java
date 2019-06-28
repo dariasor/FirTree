@@ -181,7 +181,7 @@ public class InteractionTreeLearnerGAMMC{
  				if(clsValue == 0)
  					zero_size++;
  				if(!app.regression && ((clsValue < 0) || (clsValue > 1))) {
- 					System.err.println("Error: The response column contains value \"" + data[clsColNo] + "\" in line " + (data_size + 1) + ". Not compatible with AUC metric.");
+ 					System.err.println("Error: The response column contains value \"" + data[clsColNo] + "\" in line " + (data_size + 1) + ". Not compatible with the AUC metric.");
  					System.exit(1); 					
  				}
 			} catch(java.lang.NumberFormatException e) {
@@ -342,9 +342,9 @@ public class InteractionTreeLearnerGAMMC{
 		} else 
 		{			
 			int nonzero_size = data_size - zero_size;			
-			int nonzero_train_size = (int)Math.min(nonzero_size * train_coef, train_abs / 2);
+			int nonzero_train_size = (int)Math.min(nonzero_size * train_coef, train_abs / 2.0);
 			int zero_train_size = (int)Math.min(zero_size * train_coef, train_abs - nonzero_train_size);
-			int nonzero_valid_size = (int)Math.min(nonzero_size - nonzero_train_size, valid_abs / 2);
+			int nonzero_valid_size = (int)Math.min(nonzero_size - nonzero_train_size, valid_abs / 2.0);
 			int zero_valid_size = (int)Math.min(zero_size - zero_train_size, Math.min(valid_abs - nonzero_valid_size, (int)(nonzero_valid_size * ((double)zero_train_size / nonzero_train_size))));			
 			
 			double portion_zero_train = zero_train_size / (double) zero_size;
