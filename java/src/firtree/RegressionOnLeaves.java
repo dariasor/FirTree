@@ -194,7 +194,6 @@ public class RegressionOnLeaves {
 			BufferedReader br_dta = new BufferedReader(new FileReader(dataNodePath + "/fir.dta"));
 			ArrayList<Double> y_double_arraylist = new ArrayList<Double>();
 			double y_sum = 0;
-
 			
 			for(String line = br_dta.readLine(); line != null; line = br_dta.readLine()){
 				String[] data = line.split("\t+");
