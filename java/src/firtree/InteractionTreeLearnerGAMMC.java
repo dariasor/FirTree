@@ -127,18 +127,21 @@ public class InteractionTreeLearnerGAMMC{
 			System.err.println("Error: the config file " + opts.prefix + "/env.config does not exist. Wrong config directory?");
 			System.exit(1);
 		}
+		opts.prefix = binDir.getAbsolutePath();
 			
 		File dir = new File(opts.dir);
 		if (!dir.exists()) {
 			System.err.println("Error: the FirTree directory " + opts.dir + " does not exist.");
 			System.exit(1);
-		}		
+		}
+		opts.dir = dir.getAbsolutePath();
 
 		File attrFile = new File(opts.attPath);
 		if (!attrFile.exists()) {
 			System.err.println("Error: the attribute file " + opts.attPath + " does not exist.");
 			System.exit(1);
 		}
+		opts.attPath = attrFile.getAbsolutePath();
 
 		FileWriter logFile = new FileWriter(opts.dir + "/treelog.txt", false);
 		logFile.close();
@@ -547,7 +550,7 @@ public class InteractionTreeLearnerGAMMC{
 			for (int j = 0; j < split.splits.length; j++) {
 				
 				double splitPoint = (split.feature.centers[j] + split.feature.centers[j + 1]) / 2;
-				timeStamp("Split dataset for feature #" + i + " split #" + j + ".");
+				timeStamp("Build and evaluate the split of feature #"+i+" split #"+j+".");
 				// 8.1 Split the dataset
 				Instances trainLeft = new Instances(ainfo);
 				Instances trainRight = new Instances(ainfo);
@@ -556,7 +559,6 @@ public class InteractionTreeLearnerGAMMC{
 				Instances validLeft = new Instances(ainfo);
 				Instances validRight = new Instances(ainfo);
 				split(validSet, attIndex, splitPoint, validLeft, validRight);
-				timeStamp("Build and evaluate the split of feature #"+i+" split #"+j+".");
 				// 8.2 Build GAMMC and evaluate this split
 				Instances trainLeftGAM = trainLeft.copy();
 				Instances validLeftGAM = validLeft.copy();				
