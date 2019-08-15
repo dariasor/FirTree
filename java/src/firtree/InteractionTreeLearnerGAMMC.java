@@ -663,7 +663,7 @@ public class InteractionTreeLearnerGAMMC{
 						List<Pair<String, String>> pairs, String suffix
 					  ) throws Exception{
 		// Here we build a large BT model. 
-		runProcess(dir, BT, attr, train, valid, "-b 300 -a 0.01");
+		runProcess(dir, BT, attr, train, valid, "-b 300 -a 0.01 -k 0");
 
 		// Run visualization
 		for (Pair<String, String> pair : pairs) {
@@ -688,7 +688,7 @@ public class InteractionTreeLearnerGAMMC{
 			Set<String> features, String suffix
 		  ) throws Exception{
 		// Here we build a large BT model
-		runProcess(dir, BT, attr, train, valid, "-b 300 -a 0.01");
+		runProcess(dir, BT, attr, train, valid, "-b 300 -a 0.01 -k 0");
 	
 		// Run visualization
 		for (String feat : features) {
