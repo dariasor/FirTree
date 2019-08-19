@@ -452,6 +452,13 @@ public class InteractionTreeLearnerGAMMC{
 			sb.append("\t" + data[0] + "\n");
 		}
 		br.close();
+		
+		//done with AG, so remove bulky AGTemp
+		File agDir = new File(tmpDir + File.separator + "AGTemp");
+		File[] entries = agDir.listFiles();
+		for (File entry : entries) {
+			entry.delete();
+		}
 
 		// 4. Choose candidates
 		String interactionGraph = tmpDir + File.separator + "list.txt";
