@@ -80,18 +80,32 @@ public class FirTree {
 
 			if(node_type.get(nodeNo) == NodeType.MODEL) {
 				// there is a model on the leaf
-				BufferedReader lr_text = new BufferedReader(new FileReader(dir + "/Node_" + node_name.get(nodeNo) + "/model_polydegree_" + poly_degree + ".txt"));
+				String lr_file_name = dir + "/Node_" + node_name.get(nodeNo) + "/model_polydegree_" + poly_degree + ".txt";
+				BufferedReader lr_text = new BufferedReader(new FileReader(lr_file_name));
 				String line = lr_text.readLine();
 				intercept_val[nodeNo] = Double.parseDouble(line.split("\t")[1]);
 				line = lr_text.readLine();
-				while(line != null){
+				while(line != null) {
+					
 					String[] lr_data_string = line.split("\t");
-					hold_lr_attr_ids.add(ainfo.nameToId.get(lr_data_string[0]));
+					Integer attr_id = ainfo.nameToId.get(lr_data_string[0]);
+					if(attr_id == null)
+					{
+						System.out.println("Error: not a valid attribute name " + lr_data_string[0] + " in " + lr_file_name);
+						System.exit(1);
+					}
+					hold_lr_attr_ids.add(attr_id);
+					
 					ArrayList<Double> tempnode_tempattr_model_coef = new ArrayList<Double>();
 					for(int i = 0; i < poly_degree + 2; i++){
 						// the last two items are (min and max) range of the attribute
 						// the previous items are coefficients of the corresponding polynomial terms of the attribute
-						tempnode_tempattr_model_coef.add(Double.parseDouble(lr_data_string[i + 1]));
+						try {
+							tempnode_tempattr_model_coef.add(Double.parseDouble(lr_data_string[i + 1]));
+						} catch(Exception e) {
+							System.out.println("Error: can't parse " + lr_data_string[i + 1] + " in " + lr_file_name);
+							System.exit(1);
+						}
 					}
 					hold_lr_attr_coefs.add(tempnode_tempattr_model_coef);
 					line = lr_text.readLine();
