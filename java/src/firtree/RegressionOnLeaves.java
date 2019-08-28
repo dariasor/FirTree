@@ -19,10 +19,10 @@ public class RegressionOnLeaves {
 	static class Options {
 		@Argument(name = "-d", description = "model directory", required = true)
 		String dir = ""; //path up to FirTree/
-		
+
 		@Argument(name = "-r", description = "attribute file", required = true)
 		String attPath = "";
-		
+
 		@Argument(name = "-y", description = "polynomial degree")
 		int poly_degree = 2;
 	}
@@ -37,15 +37,15 @@ public class RegressionOnLeaves {
 			parser.printUsage();
 			System.exit(1);
 		}
-		
+
 		long start = System.currentTimeMillis();
 
-		// load attrFile.  This helps identify corresponding column index of selected attributes 
+		// load attrFile.  This helps identify corresponding column index of selected attributes
 
 		timeStamp("Load attrFile");
 		AttrInfo ainfo_core = AttributesReader.read(opts.attPath);
 
-		// Identify tree leaves that will (1) contain LR models, (2) predict constants; 
+		// Identify tree leaves that will (1) contain LR models, (2) predict constants;
 
 		timeStamp("Identify tree leaves");
 
@@ -89,7 +89,7 @@ public class RegressionOnLeaves {
 
 			// read the data, save labels and values of selected features
 			BufferedReader br_dta = new BufferedReader(new FileReader(dataNodePath + "/fir.dta"));
-			
+
 			int col_num = ainfo_leaf.attributes.size(); //col refers to the columns in the matrix, not in the data file
 			List<List<Double>> xMat_arraylist = new ArrayList<List<Double>>(); //dynamic memory for temp data storage - features
 			ArrayList<Double> y_double_arraylist = new ArrayList<Double>(); //dynamic memory for temp data storage - labels
@@ -101,14 +101,14 @@ public class RegressionOnLeaves {
 				for(int j = 0; j < col_num; j++){
 					current_selected_attr.add(Double.parseDouble(data[ainfo_leaf.attributes.get(j).getColumn()]));
 				}
-				xMat_arraylist.add(current_selected_attr); 
+				xMat_arraylist.add(current_selected_attr);
 			}
 			br_dta.close();
 
 			long end_load = System.currentTimeMillis();
 
 			int row_num = y_double_arraylist.size(); // number of data points
-			System.out.println(row_num);
+			System.out.println("Number of data points: "  + row_num);
 
 			//copy the data into regular arrays, as required for regression model input
 			double[] y_double = new double[row_num];
@@ -132,7 +132,8 @@ public class RegressionOnLeaves {
 				}
 			}
 
-			OLS ols_trans = new OLS(xMat_trans, y_double); 
+			// Setting the last parameter to True to use SVD decomposition as part of the regression
+			OLS ols_trans = new OLS(xMat_trans, y_double, true);
 
 			double[] ols_trans_coef = ols_trans.coefficients();
 			double ols_trans_intercept = ols_trans.intercept();
@@ -141,7 +142,7 @@ public class RegressionOnLeaves {
 			ArrayList<ArrayList<Double>> attr_range = new ArrayList<ArrayList<Double>>();
 			for(int j = 0; j < col_num; j++){
 				ArrayList<Double> current_attr_range = new ArrayList<Double>();
-				double current_attr_min = Double.POSITIVE_INFINITY; 
+				double current_attr_min = Double.POSITIVE_INFINITY;
 				double current_attr_max = Double.NEGATIVE_INFINITY;
 				for(int i = 0; i < row_num; i++){
 					if(xMat[i][j] < current_attr_min){
@@ -194,12 +195,11 @@ public class RegressionOnLeaves {
 			BufferedReader br_dta = new BufferedReader(new FileReader(dataNodePath + "/fir.dta"));
 			ArrayList<Double> y_double_arraylist = new ArrayList<Double>();
 			double y_sum = 0;
-			
 			for(String line = br_dta.readLine(); line != null; line = br_dta.readLine()){
 				String[] data = line.split("\t+");
 				double y_current = Double.parseDouble(data[ainfo_core.getClsCol()]);
 				y_double_arraylist.add(y_current);
-				y_sum += y_current;				
+				y_sum += y_current;
 			}
 			br_dta.close();
 
