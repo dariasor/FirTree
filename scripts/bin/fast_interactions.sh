@@ -71,7 +71,7 @@ PARAMS_INTERACTION=`tail -1 params_interaction.txt`
 
 $AG_INTERACTIONS -t $TRAIN_FILE -v $VALID_FILE -r $ATTR_FS_FILE $PARAMS_FS $PARAMS_INTERACTION > /dev/null
 
-$PYTHON $PARSE_INTERACTIONS log.txt > list.txt
+$PYTHON $PARSE_INTERACTIONS 
 
 END=$(date +%s)
 DIFF=$(( $END - $START ))

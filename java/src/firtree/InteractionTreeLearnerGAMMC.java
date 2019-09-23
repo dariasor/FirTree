@@ -461,17 +461,11 @@ public class InteractionTreeLearnerGAMMC{
 		}
 
 		// 4. Choose candidates
-		String interactionGraph = tmpDir + File.separator + "list.txt";
-		Pair<List<String>, Boolean> gcret = getCandidates(interactionGraph);
+		String candidates = tmpDir + File.separator + "candidates.txt";		
+		Pair<List<String>, String> gcret = getCandidates(candidates);
 		List<String> candidateFeatureNames = gcret.v1;
-		boolean weakOnly = gcret.v2; 
+		String candType = gcret.v2; 
 		
-		PrintWriter out = new PrintWriter(tmpDir + File.separator + "candidates.txt");
-		for (String name : candidateFeatureNames) {
-			out.println(name);
-		}
-		out.flush();
-		out.close();
 
 		// 5. Build a GAM for parent
  		Instances trainSet = InstancesReader.read(ainfo, train, "\t+", true);
@@ -521,7 +515,7 @@ public class InteractionTreeLearnerGAMMC{
 		double parentScore = metric.eval(predsValid, targetsValid);
 		sb.append("Parent " + metric.toString() + ": " + parentScore + "\n");		
 
-		out = new PrintWriter(tmpDir + File.separator + "parent.txt");
+		PrintWriter out = new PrintWriter(tmpDir + File.separator + "parent.txt");
 		out.println(parentScore);
 		out.flush();
 		out.close();
@@ -532,6 +526,7 @@ public class InteractionTreeLearnerGAMMC{
 
 		runProcess(dir, VIS_MV, "AG_PLOTS");
 
+		String interactionGraph = tmpDir + File.separator + "list.txt";
 		List<Pair<String, String>> pairs = getInteractions(interactionGraph);
 		visIPlot(dir, attrfs12, train, valid, tmpDir, pairs, "v1");
 		visIPlot(dir, attrfs12, valid, train, tmpDir, pairs, "v2");
@@ -637,8 +632,10 @@ public class InteractionTreeLearnerGAMMC{
 			if (metric.isFirstBetter(bestScore, parentScore)) {
 				sb.append("Best feature: " + ainfo.attributes.get(bestAtt).getName() + "\n");
 				sb.append("Best split: " + bestSplit + "\n");
-				if(weakOnly)
+				if(candType.compareTo("w") == 0)
 					sb.append("Weak interactions only.\n");
+				if(candType.compareTo("d") == 0)
+					sb.append("Dominant feature split\n");
 				// Visualize the splits
 				runProcess(dir, VIS_SPLIT, "BT_PLOTS", ainfo.attributes.get(bestAtt).getName(), bestSplit+"");
 			} else {
@@ -771,7 +768,7 @@ public class InteractionTreeLearnerGAMMC{
 		return attrs;
 	}
 	
-	
+
 	protected static List<Pair<String, String>> getInteractions(String interactionGraph) 
 			throws Exception {
 		List<Pair<String, String>> candidates = new ArrayList<>();
@@ -795,92 +792,28 @@ public class InteractionTreeLearnerGAMMC{
 		return candidates;
 	}
 	
-	protected static Pair<List<String>, Boolean> getCandidates(String interactionGraph) 
+	protected static Pair<List<String>, String> getCandidates(String candFName) 
 			throws Exception {
-		List<String> candidates = new ArrayList<>();
-		Map<String, Map<String, Double>> graph = new HashMap<>();
 
-		BufferedReader br = new BufferedReader(new FileReader(interactionGraph));
-		for (;;) {
+		List<String> candidates = new ArrayList<>();
+		BufferedReader br = new BufferedReader(new FileReader(candFName));
+		String candType = null;
+		for (int i = 0; i < 3; i++) {
 			String line = br.readLine();
 			if (line == null) {
 				break;
 			}
 			String[] data = line.split("\\s+");
-			String x = data[0];
-			String y = data[1];
-			if (data[2].indexOf("inf") >= 0 || data[2].indexOf("nan") >= 0) {
-				continue;
-			}
-			double w = Double.parseDouble(data[2]);
-			if (w >= 3.0) {
-				if (!graph.containsKey(x)) {
-					graph.put(x, new HashMap<String, Double>());
-				}
-				if (!graph.containsKey(y)) {
-					graph.put(y, new HashMap<String, Double>());
-				}
-				graph.get(x).put(y, w);
-				graph.get(y).put(x, w);
-			}
-			
+			if(candType == null)
+				candType = data[1];
+			if(candType.compareTo(data[1]) == 0)
+				candidates.add(data[0]);
+			else
+				break;
 		}
 		br.close();
 		
-		Set<String> strongCands = new HashSet<>();
-		Set<String> weakCands = new HashSet<>();
-
-		for (String node : graph.keySet()) {
-			Map<String, Double> adjList = graph.get(node);
-			if(adjList.values().size() >= 3) {
-				weakCands.add(node);
-			}
-			for (double w : adjList.values()) {
-				if(w >= 7) {
-					strongCands.add(node);
-				}
-			}
-		}
-		
-		boolean weakOnly = false;
-		Set<String> supCandidates;
-		if (strongCands.size() > 0)
-		{
-			supCandidates = strongCands;
-		}
-		else
-		{
-			supCandidates = weakCands;
-			weakOnly = true;
-		}
-		
-		while (graph.size() > 0 && supCandidates.size() > 0 && candidates.size() < 3) {
-			double maxWSum = -1;
-			String bestNode = "";
-			
-			for (String node : supCandidates) {
-				Map<String, Double> adjList = graph.get(node);
-				double wSum = 0;
-				for (double w : adjList.values()) {
-					wSum += w;
-				}
-				if (wSum > maxWSum) {
-					maxWSum = wSum;
-					bestNode = node;
-				}
-			}
-			
-			candidates.add(bestNode);
-			supCandidates.remove(bestNode);
-
-			Map<String, Double> adjList = graph.get(bestNode);
-			for (String neighbor : adjList.keySet()) {
-				graph.get(neighbor).remove(bestNode);
-			}
-			graph.remove(bestNode);
-		}
-
-		return new Pair<List<String>, Boolean> (candidates, weakOnly);
+		return new Pair<List<String>, String> (candidates, candType);
 	}
 	
 
