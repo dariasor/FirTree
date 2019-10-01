@@ -194,7 +194,7 @@ public class FirTree {
 		{
 			int current_node_index = node_name.indexOf(current_node_name);
 			NodeType current_type = node_type.get(current_node_index);
-			int height = current_node_name.length() - current_node_name.replace("_", "").length() + 1; //number of "_" in the node name
+			int height = current_node_name.length() - current_node_name.replace("_", "").length(); //number of "_" in the node name
 			String tabs = String.join("", Collections.nCopies(height, "    ")); //sequence of tabs, each tab is represented by 4 spaces
 			
 			if(first_time)
