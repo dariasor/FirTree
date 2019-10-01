@@ -228,7 +228,7 @@ public class FirTree {
 						//prediction = b0						
 						cpp_out.write("\n" + tabs + "    prediction = " + intercept_val[current_node_index]);
 						for(int lr_attr_index = 0; lr_attr_index < lr_attr_ids.get(current_node_index).size(); lr_attr_index++) {
-						    String current_lr_attr_cap = ainfo.idToName(lr_attr_ids.get(current_node_index).get(lr_attr_index)).replace("_","") + "cap";
+						    String current_lr_attr_cap = ainfo.idToName(lr_attr_ids.get(current_node_index).get(lr_attr_index)) + "cap";
 							// + x1_cap *
 							cpp_out.write("\n" + tabs + "        + " + current_lr_attr_cap + " *\n" + tabs + "        ");
 							for(int degree_index = 0; degree_index < poly_degree - 1; degree_index++)
