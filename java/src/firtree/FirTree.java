@@ -224,8 +224,8 @@ public class FirTree {
 							double current_max = current_lr_coefs.get(lr_attr_index).get(poly_degree + 1);
 							//double x1_cap = (x1 < min1) ? min1 : (x1 > max1) ? max1 : x1;
 							cpp_out.write(
-								tabs + "    double " + current_lr_attr + "_cap = (" + current_lr_attr +	" < " +
-								current_min + ") ? " + current_min + " : (" + current_lr_attr + " > " +
+								tabs + "    double " + current_lr_attr + "_cap =\n" + tabs + "        (" + current_lr_attr +	" < " +
+								current_min + ") ?\n" + tabs + "        " + current_min + " :\n" + tabs + "        (" + current_lr_attr + " > " +
 								current_max + ") ? " + current_max + " : " + current_lr_attr + ";\n"
 							); 
 						}
