@@ -219,7 +219,7 @@ public class FirTree {
 						ArrayList<ArrayList<Double>> current_lr_coefs = lr_coefs.get(current_node_index);
 						
 						for(int lr_attr_index = 0; lr_attr_index < lr_attr_ids.get(current_node_index).size(); lr_attr_index++) {
-						    String current_lr_attr = ainfo.idToName(lr_attr_ids.get(current_node_index).get(lr_attr_index)).replace("_","");
+						    String current_lr_attr = ainfo.idToName(lr_attr_ids.get(current_node_index).get(lr_attr_index));
 							double current_min = current_lr_coefs.get(lr_attr_index).get(poly_degree);
 							double current_max = current_lr_coefs.get(lr_attr_index).get(poly_degree + 1);
 							//double xcap = max(0.0, min(x, 5760.0));
