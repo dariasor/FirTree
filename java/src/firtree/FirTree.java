@@ -223,7 +223,7 @@ public class FirTree {
 							double current_min = current_lr_coefs.get(lr_attr_index).get(poly_degree);
 							double current_max = current_lr_coefs.get(lr_attr_index).get(poly_degree + 1);
 							//double xcap = max(0.0, min(x, 5760.0));
-							cpp_out.write(tabs + "    double " + current_lr_attr + "cap = max(" + current_min + ", min(" + current_lr_attr + ", " + current_max + "));\n"); 
+							cpp_out.write(tabs + "    double " + current_lr_attr + "cap = std::max(" + current_min + ", std::min(" + current_lr_attr + ", " + current_max + "));\n"); 
 						}
 						//prediction = b0						
 						cpp_out.write("\n" + tabs + "    prediction = " + intercept_val[current_node_index]);
