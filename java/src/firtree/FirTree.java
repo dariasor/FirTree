@@ -206,7 +206,7 @@ public class FirTree {
 				
 				if(current_type == NodeType.SPLIT) 	{
 					double current_split_value = split_val.get(current_node_index);
-					String current_split_attr = ainfo.idToName(split_attr_id.get(current_node_index)).replace("_","");
+					String current_split_attr = ainfo.idToName(split_attr_id.get(current_node_index));
 
 					cpp_out.write(tabs + "    if (" + current_split_attr + " <= " + current_split_value + ") {\n");
 					current_node_name += "_L";
