@@ -263,12 +263,12 @@ public class FirTree {
 
 	public void outjava(String outputPath) throws Exception
 	{
-		BufferedWriter cpp_out = new BufferedWriter(new FileWriter(outputPath));
+		BufferedWriter java_out = new BufferedWriter(new FileWriter(outputPath));
 		
 		String current_node_name = "Root";
 		Boolean first_time = true;
 		
-		cpp_out.write("        double prediction = 0;\n\n");
+		java_out.write("        double prediction = 0;\n\n");
 		
 		while(true)
 		{
@@ -280,20 +280,20 @@ public class FirTree {
 			if(first_time)
 			{
 				if(current_node_name.endsWith("R"))
-					cpp_out.write(tabs + "} else {\n");
+					java_out.write(tabs + "} else {\n");
 
-				cpp_out.write(tabs + "    //" + current_node_name + "\n");
+				java_out.write(tabs + "    //" + current_node_name + "\n");
 				
 				if(current_type == NodeType.SPLIT) 	{
 					double current_split_value = split_val.get(current_node_index);
 					String current_split_attr = ainfo.idToName(split_attr_id.get(current_node_index)).replace("_","");
 
-					cpp_out.write(tabs + "    if (" + current_split_attr + " <= " + current_split_value + ") {\n");
+					java_out.write(tabs + "    if (" + current_split_attr + " <= " + current_split_value + ") {\n");
 					current_node_name += "_L";
 				} else {
 					first_time = false;
 					if(current_type == NodeType.CONST) {
-						cpp_out.write(tabs + "    prediction = " + const_val[current_node_index] + ";\n");
+						java_out.write(tabs + "    prediction = " + const_val[current_node_index] + ";\n");
 					} else {
 						//linear regression model in the leaf
 						ArrayList<ArrayList<Double>> current_lr_coefs = lr_coefs.get(current_node_index);
@@ -303,21 +303,21 @@ public class FirTree {
 							double current_min = current_lr_coefs.get(lr_attr_index).get(poly_degree);
 							double current_max = current_lr_coefs.get(lr_attr_index).get(poly_degree + 1);
 							//double xcap = Math.max(0.0, Math.min(x, 5760.0));
-							cpp_out.write(tabs + "    double " + current_lr_attr + "cap = Math.max(" + current_min + ", Math.min(" + current_lr_attr + ", " + current_max + "));\n"); 
+							java_out.write(tabs + "    double " + current_lr_attr + "cap = Math.max(" + current_min + ", Math.min(" + current_lr_attr + ", " + current_max + "));\n"); 
 						}
 						//prediction = b0						
-						cpp_out.write("\n" + tabs + "    prediction = " + intercept_val[current_node_index]);
+						java_out.write("\n" + tabs + "    prediction = " + intercept_val[current_node_index]);
 						for(int lr_attr_index = 0; lr_attr_index < lr_attr_ids.get(current_node_index).size(); lr_attr_index++) {
 						    String current_lr_attr_cap = ainfo.idToName(lr_attr_ids.get(current_node_index).get(lr_attr_index)).replace("_","") + "cap";
 							// + x1_cap *
-							cpp_out.write("\n" + tabs + "        + " + current_lr_attr_cap + " *\n" + tabs + "        ");
+						    java_out.write("\n" + tabs + "        + " + current_lr_attr_cap + " *\n" + tabs + "        ");
 							for(int degree_index = 0; degree_index < poly_degree - 1; degree_index++)
 								//(b11 + x1_cap * (b12 + x1_cap * ...
-								cpp_out.write("(" + current_lr_coefs.get(lr_attr_index).get(degree_index) + " + " + current_lr_attr_cap + " *\n" + tabs + "        ");
+								java_out.write("(" + current_lr_coefs.get(lr_attr_index).get(degree_index) + " + " + current_lr_attr_cap + " *\n" + tabs + "        ");
 							//b13)))
-							cpp_out.write(current_lr_coefs.get(lr_attr_index).get(poly_degree - 1) + String.join("", Collections.nCopies(poly_degree - 1, ")")));
+							java_out.write(current_lr_coefs.get(lr_attr_index).get(poly_degree - 1) + String.join("", Collections.nCopies(poly_degree - 1, ")")));
 						}
-						cpp_out.write(";\n");
+						java_out.write(";\n");
 					}
 				}
 			} else {
@@ -325,7 +325,7 @@ public class FirTree {
 					current_node_name = current_node_name.replaceAll("L$","R"); //replace last L with R
 					first_time = true;
 				} else if(current_node_name.endsWith("R")) {
-					cpp_out.write(tabs + "}\n");
+					java_out.write(tabs + "}\n");
 					current_node_name = current_node_name.replaceAll("_R$",""); //remove last "_R"
 				} else {//Node_Root
 					break;
@@ -333,6 +333,6 @@ public class FirTree {
 			}
 		}
 		
-		cpp_out.close();
+		java_out.close();
 	}
 }

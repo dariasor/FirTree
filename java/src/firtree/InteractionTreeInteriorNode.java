@@ -1,10 +1,6 @@
 package firtree;
 
-import java.io.BufferedReader;
-import java.io.PrintWriter;
-import java.util.List;
 
-import mltk.core.Instance;
 
 
 /**
