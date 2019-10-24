@@ -5,11 +5,12 @@ import java.util.Comparator;
 
 import mltk.core.Instances;
 import mltk.util.tuple.DoublePair;
+import mltk.util.tuple.DoubleTriple;
 
 /**
  * Class for evaluating area under ROC curve.
  * 
- * @author Yin Lou
+ * @author Yin Lou, modified by Xiaojie Wang
  *
  */
 public class AUC extends Metric {
@@ -35,6 +36,21 @@ public class AUC extends Metric {
 
 	}
 
+	private class DoubleTripleComparator implements Comparator<DoubleTriple> {
+
+		@Override
+		public int compare(DoubleTriple o1, DoubleTriple o2) {
+			if (o1.v1 < o2.v1) {
+				return -1;
+			} else if (o1.v1 > o2.v1) {
+				return 1;
+			} else {
+				return 0;
+			}
+		}
+
+	}
+	
 	/**
 	 * Constructor.
 	 */
@@ -44,6 +60,8 @@ public class AUC extends Metric {
 
 	@Override
 	public double eval(double[] preds, double[] targets) {
+		System.out.println("ERROR: do not support weights and use other eval instead");
+		System.exit(1);
 		DoublePair[] a = new DoublePair[preds.length];
 		for (int i = 0; i < preds.length; i++) {
 			a[i] = new DoublePair(preds[i], targets[i]);
@@ -52,15 +70,28 @@ public class AUC extends Metric {
 	}
 
 	@Override
-	public double eval(double[] preds, Instances instances) {
-		DoublePair[] a = new DoublePair[preds.length];
+	public double eval(double[] preds, double[] targets, double[] weights) {
+		DoubleTriple[] a = new DoubleTriple[preds.length];
 		for (int i = 0; i < preds.length; i++) {
-			a[i] = new DoublePair(preds[i], instances.get(i).getTarget());
+			a[i] = new DoubleTriple(preds[i], targets[i], weights[i]);
+		}
+		return eval(a);
+	}
+	
+	@Override
+	public double eval(double[] preds, Instances instances) {
+//		DoublePair[] a = new DoublePair[preds.length];
+		DoubleTriple[] a = new DoubleTriple[preds.length];
+		for (int i = 0; i < preds.length; i++) {
+//			a[i] = new DoublePair(preds[i], instances.get(i).getTarget());
+			a[i] = new DoubleTriple(preds[i], instances.get(i).getTarget(), instances.get(i).getWeight());
 		}
 		return eval(a);
 	}
 	
 	protected double eval(DoublePair[] a) {
+		System.out.println("ERROR: do not support weights and use other eval instead");
+		System.exit(1);
 		Arrays.sort(a, new DoublePairComparator());
 		double[] fraction = new double[a.length];
 		for (int idx = 0; idx < fraction.length;) {
@@ -104,7 +135,58 @@ public class AUC extends Metric {
 		return area;
 	}
 
+	protected double eval(DoubleTriple[] a) {
+		Arrays.sort(a, new DoubleTripleComparator());
+
+		double tp = 0; // Variable tp is true positive, equivalent to tt
+		double fp = 0; // Variable fp is false positive, equivalent to ft
+		double tp_fn = 0; // Variable fn is false negative, equivalent to tf
+		double fp_tn = 0; // Variable tn is true negative, equivalent to ff
+
+		for (int i = 0; i < a.length; i++) {
+			tp_fn += a[i].v2 * a[i].v3;
+			fp_tn += (1 - a[i].v2) * a[i].v3;
+		}
+
+		double area = 0;
+		double tprPrev = 0;
+		double fprPrev = 0;
+		int i = a.length - 1;
+		while (i >= 0) {
+			double threshold = a[i].v1;
+			do {
+				tp += a[i].v2 * a[i].v3;
+				fp += (1 - a[i].v2) * a[i].v3;
+				i --;
+			} while (i >= 0 && a[i].v1 == threshold);
+			
+			// TODO: handle divide by zero here, also in eval(DoublePair[])
+			double tpr = tp / tp_fn;
+			double fpr = fp / fp_tn;
+			
+			area += 0.5 * (tpr + tprPrev) * (fpr - fprPrev);
+			tprPrev = tpr;
+			fprPrev = fpr;
+//			System.out.printf("tp=%f fn=%f fp=%f tn=%f\n", tp, fn, fp, tn);
+		}
+
+		return area;
+	}
+	
 	public String toString() {
 		return "AUC";
+	}
+
+	public static void main(String[] args) throws Exception {
+		// Consistent with sklearn.metrics.roc_auc_score(y_true, y_score, sample_weight)
+		DoubleTriple[] a = new DoubleTriple[5];
+		a[0] = new DoubleTriple(0.3, 0, 0.9);
+		a[1] = new DoubleTriple(0.7, 1, 0.3);
+		a[2] = new DoubleTriple(0.5, 1, 0.1);
+		a[3] = new DoubleTriple(0.7, 0, 0.5);
+		a[4] = new DoubleTriple(0.5, 1, 0.7);
+		AUC metric = new AUC();
+		double auc = metric.eval(a);
+		System.out.printf("AUC=%.6f\n", auc);	
 	}
 }

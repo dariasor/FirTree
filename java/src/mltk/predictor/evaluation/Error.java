@@ -5,7 +5,7 @@ import mltk.core.Instances;
 /**
  * Class for evaluating error rate.
  * 
- * @author Yin Lou
+ * @author Yin Lou, modified by Xiaojie Wang
  *
  */
 public class Error extends Metric {
@@ -30,6 +30,13 @@ public class Error extends Metric {
 		return error / preds.length;
 	}
 
+	@Override
+	public double eval(double[] preds, double[] targets, double[] weights) {
+		System.out.println("ERROR: have not implemented yet and use other eval instead");
+		System.exit(1);
+		return 0;
+	}
+	
 	@Override
 	public double eval(double[] preds, Instances instances) {
 		double error = 0;

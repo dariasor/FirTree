@@ -5,7 +5,7 @@ import mltk.core.Instances;
 /**
  * Class for evaluation metrics.
  * 
- * @author Yin Lou
+ * @author Yin Lou, modified by Xiaojie Wang
  *
  */
 public abstract class Metric {
@@ -62,4 +62,13 @@ public abstract class Metric {
 	 */
 	public abstract double eval(double[] preds, double[] targets);
 
+	/**
+	 * Evaluates predictions given targets with weights.
+	 * 
+	 * @param preds the predictions.
+	 * @param targets the targets.
+	 * @param weights the weights.
+	 * @return the evaluation measure.
+	 */
+	public abstract double eval(double[] preds, double[] targets, double[] weights);
 }

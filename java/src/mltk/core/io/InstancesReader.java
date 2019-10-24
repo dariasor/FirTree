@@ -18,7 +18,7 @@ import mltk.util.MathUtils;
 /**
  * Class for reading instances.
  * 
- * @author Yin Lou
+ * @author Yin Lou, modified by Xiaojie Wang
  * 
  */
 public class InstancesReader {
@@ -181,7 +181,10 @@ public class InstancesReader {
 		double classValue = (ainfo.clsAttr.getColumn() < 0) ? 
 							Double.NaN : 
 							Double.parseDouble(data[ainfo.clsAttr.getColumn()]);
-		return new Instance(vector, classValue);
+		double weightValue = (ainfo.wtAttr == null) ?
+							1.0 : 
+							Double.parseDouble(data[ainfo.wtAttr.getColumn()]);
+		return new Instance(vector, classValue, weightValue);
 	}
 	
 	/**
