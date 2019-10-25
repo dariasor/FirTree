@@ -10,25 +10,25 @@ import java.util.Collections;
 import mltk.core.io.AttrInfo;
 
 public class FirTree {
-	
+
 	private enum NodeType { SPLIT, MODEL, CONST }
 
 	private AttrInfo ainfo;
-	
+
 	private ArrayList<String> node_name;
 	private ArrayList<NodeType> node_type;
 	private ArrayList<Integer> split_attr_id;
 	private ArrayList<Double> split_val;
 	private int poly_degree;
-	
+
 	private int nodeN;
 	private double[] const_val;
 	private double[] intercept_val;
 	private ArrayList<ArrayList<Integer>> lr_attr_ids;
 	private ArrayList<ArrayList<ArrayList<Double>>> lr_coefs;
-	
+
 	public FirTree(AttrInfo ainfo_in, String dir, int poly_degree_in) throws Exception {
-	
+
 		// Load treeforPred
 		node_name = new ArrayList<String>();
 		node_type = new ArrayList<NodeType>();
@@ -39,7 +39,7 @@ public class FirTree {
 		
 		BufferedReader treelog = new BufferedReader(new FileReader(dir + "/treelog.txt"), 65535);
 		String line_tree = treelog.readLine();
-		
+
 		while(line_tree != null){
 			if(line_tree.matches("Root(.*)")){
 				node_name.add(line_tree.trim());
@@ -60,7 +60,6 @@ public class FirTree {
 				split_attr_id.add(ainfo.nameToId.get(current_attr));
 				line_tree = treelog.readLine();
 				split_val.add(Double.parseDouble(line_tree.split(" ")[2]));
-				
 			}
 			line_tree = treelog.readLine();
 		}
@@ -86,7 +85,6 @@ public class FirTree {
 				intercept_val[nodeNo] = Double.parseDouble(line.split("\t")[1]);
 				line = lr_text.readLine();
 				while(line != null) {
-					
 					String[] lr_data_string = line.split("\t");
 					Integer attr_id = ainfo.nameToId.get(lr_data_string[0]);
 					if(attr_id == null)
@@ -95,7 +93,7 @@ public class FirTree {
 						System.exit(1);
 					}
 					hold_lr_attr_ids.add(attr_id);
-					
+
 					ArrayList<Double> tempnode_tempattr_model_coef = new ArrayList<Double>();
 					for(int i = 0; i < poly_degree + 2; i++){
 						// the last two items are (min and max) range of the attribute
@@ -127,12 +125,12 @@ public class FirTree {
 			}
 		}
 	}
-	
+
 	public double predict(String data_str) {
 		String[] data = data_str.split("\t");
 		int current_index = 0;
 		String next_node = new String();
-		
+
 		while(true){
 			String current_node = node_name.get(current_index);
 			NodeType current_type = node_type.get(current_index);
@@ -180,30 +178,30 @@ public class FirTree {
 			}
 		}
 	}
-	
+
 	public void outcpp(String outputPath) throws Exception
 	{
 		BufferedWriter cpp_out = new BufferedWriter(new FileWriter(outputPath));
-		
+
 		String current_node_name = "Root";
 		Boolean first_time = true;
-		
+
 		cpp_out.write("    double prediction = 0;\n\n");
-		
+
 		while(true)
 		{
 			int current_node_index = node_name.indexOf(current_node_name);
 			NodeType current_type = node_type.get(current_node_index);
 			int height = current_node_name.length() - current_node_name.replace("_", "").length(); //number of "_" in the node name
 			String tabs = String.join("", Collections.nCopies(height, "    ")); //sequence of tabs, each tab is represented by 4 spaces
-			
+
 			if(first_time)
 			{
 				if(current_node_name.endsWith("R"))
 					cpp_out.write(tabs + "} else {\n");
 
 				cpp_out.write(tabs + "    //" + current_node_name + "\n");
-				
+
 				if(current_type == NodeType.SPLIT) 	{
 					double current_split_value = split_val.get(current_node_index);
 					String current_split_attr = ainfo.idToName(split_attr_id.get(current_node_index));
@@ -217,7 +215,7 @@ public class FirTree {
 					} else {
 						//linear regression model in the leaf
 						ArrayList<ArrayList<Double>> current_lr_coefs = lr_coefs.get(current_node_index);
-						
+
 						for(int lr_attr_index = 0; lr_attr_index < lr_attr_ids.get(current_node_index).size(); lr_attr_index++) {
 						    String current_lr_attr = ainfo.idToName(lr_attr_ids.get(current_node_index).get(lr_attr_index));
 							double current_min = current_lr_coefs.get(lr_attr_index).get(poly_degree);
@@ -256,34 +254,32 @@ public class FirTree {
 				}
 			}
 		}
-		
-		cpp_out.close();
 
+		cpp_out.close();
 	}
 
 	public void outjava(String outputPath) throws Exception
 	{
 		BufferedWriter java_out = new BufferedWriter(new FileWriter(outputPath));
-		
 		String current_node_name = "Root";
 		Boolean first_time = true;
-		
+
 		java_out.write("        double prediction = 0;\n\n");
-		
+
 		while(true)
 		{
 			int current_node_index = node_name.indexOf(current_node_name);
 			NodeType current_type = node_type.get(current_node_index);
 			int height = current_node_name.length() - current_node_name.replace("_", "").length() + 1; //number of "_" in the node name
 			String tabs = String.join("", Collections.nCopies(height, "    ")); //sequence of tabs, each tab is represented by 4 spaces
-			
+
 			if(first_time)
 			{
 				if(current_node_name.endsWith("R"))
 					java_out.write(tabs + "} else {\n");
 
 				java_out.write(tabs + "    //" + current_node_name + "\n");
-				
+
 				if(current_type == NodeType.SPLIT) 	{
 					double current_split_value = split_val.get(current_node_index);
 					String current_split_attr = ainfo.idToName(split_attr_id.get(current_node_index)).replace("_","");
@@ -297,7 +293,7 @@ public class FirTree {
 					} else {
 						//linear regression model in the leaf
 						ArrayList<ArrayList<Double>> current_lr_coefs = lr_coefs.get(current_node_index);
-						
+
 						for(int lr_attr_index = 0; lr_attr_index < lr_attr_ids.get(current_node_index).size(); lr_attr_index++) {
 						    String current_lr_attr = ainfo.idToName(lr_attr_ids.get(current_node_index).get(lr_attr_index)).replace("_","");
 							double current_min = current_lr_coefs.get(lr_attr_index).get(poly_degree);
@@ -332,7 +328,6 @@ public class FirTree {
 				}
 			}
 		}
-		
 		java_out.close();
 	}
 }
