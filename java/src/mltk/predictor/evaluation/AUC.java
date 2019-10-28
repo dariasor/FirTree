@@ -50,7 +50,7 @@ public class AUC extends Metric {
 		}
 
 	}
-	
+
 	/**
 	 * Constructor.
 	 */
@@ -77,7 +77,7 @@ public class AUC extends Metric {
 		}
 		return eval(a);
 	}
-	
+
 	@Override
 	public double eval(double[] preds, Instances instances) {
 //		DoublePair[] a = new DoublePair[preds.length];
@@ -159,11 +159,11 @@ public class AUC extends Metric {
 				fp += (1 - a[i].v2) * a[i].v3;
 				i --;
 			} while (i >= 0 && a[i].v1 == threshold);
-			
+
 			// TODO: handle divide by zero here, also in eval(DoublePair[])
 			double tpr = tp / tp_fn;
 			double fpr = fp / fp_tn;
-			
+
 			area += 0.5 * (tpr + tprPrev) * (fpr - fprPrev);
 			tprPrev = tpr;
 			fprPrev = fpr;
@@ -172,7 +172,7 @@ public class AUC extends Metric {
 
 		return area;
 	}
-	
+
 	public String toString() {
 		return "AUC";
 	}
@@ -187,6 +187,6 @@ public class AUC extends Metric {
 		a[4] = new DoubleTriple(0.5, 1, 0.7);
 		AUC metric = new AUC();
 		double auc = metric.eval(a);
-		System.out.printf("AUC=%.6f\n", auc);	
+		System.out.printf("AUC=%.6f\n", auc);
 	}
 }

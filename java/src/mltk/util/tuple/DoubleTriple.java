@@ -2,9 +2,9 @@ package mltk.util.tuple;
 
 /**
  * Class for <double, double, double> triple.
- * 
+ *
  * @author Xiaojie Wang
- * 
+ *
  */
 public class DoubleTriple {
 
@@ -14,7 +14,7 @@ public class DoubleTriple {
 
 	/**
 	 * Constructor.
-	 * 
+	 *
 	 * @param v1 the 1st <code>double</code>.
 	 * @param v2 the 2nd <code>double</code>.
 	 * @param v3 the 3rd <code>double</code>.

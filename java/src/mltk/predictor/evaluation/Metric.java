@@ -55,7 +55,7 @@ public abstract class Metric {
 
 	/**
 	 * Evaluates predictions given targets.
-	 * 
+	 *
 	 * @param preds the predictions.
 	 * @param targets the targets.
 	 * @return the evaluation measure.

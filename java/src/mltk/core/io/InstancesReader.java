@@ -182,7 +182,7 @@ public class InstancesReader {
 							Double.NaN : 
 							Double.parseDouble(data[ainfo.clsAttr.getColumn()]);
 		double weightValue = (ainfo.wtAttr == null) ?
-							1.0 : 
+							1.0 :
 							Double.parseDouble(data[ainfo.wtAttr.getColumn()]);
 		return new Instance(vector, classValue, weightValue);
 	}

@@ -20,9 +20,9 @@ import mltk.util.tuple.*;
 
 /**
  * Build feature interaction and regression tree (FirTree).
- * 
+ *
  * @author Daria Sorokina, modified by Xiaojie Wang
- * 
+ *
  */
 public class InteractionTreeLearnerGAMMC{
 	
@@ -59,7 +59,6 @@ public class InteractionTreeLearnerGAMMC{
 					pw.flush();
 					pw.close();
 				} catch (IOException uncatched) {}
-				
 			}
 		}
 	}
@@ -77,8 +76,8 @@ public class InteractionTreeLearnerGAMMC{
 		FeatureSplit split;
 		double splitPoint;
 		double splitScore;
-		
-		EvaluateSplit(Options opts, InteractionTreeLearnerGAMMC app, String tmpDir, Instances trainSet, Instances validSet, 
+
+		EvaluateSplit(Options opts, InteractionTreeLearnerGAMMC app, String tmpDir, Instances trainSet, Instances validSet,
 				GAMLearner learner, Metric metric, int attIndex, FeatureSplit split, double splitPoint) {
 			this.opts = opts;
 			this.app = app;
@@ -91,10 +90,10 @@ public class InteractionTreeLearnerGAMMC{
 			this.split = split;
 			this.splitPoint = splitPoint;
 		}
-		
+
 		public void run() {
 			try {
-				splitScore = app.evaluateSplit(tmpDir, trainSet, validSet, 
+				splitScore = app.evaluateSplit(tmpDir, trainSet, validSet,
 						learner, metric, attIndex, split, splitPoint);
 			} catch (Exception e) {
 				e.printStackTrace();
@@ -111,7 +110,7 @@ public class InteractionTreeLearnerGAMMC{
 			}
 		}
 	}
-	
+
 	/**
 	 * Script locations.
 	 */
@@ -537,14 +536,14 @@ public class InteractionTreeLearnerGAMMC{
 
 		timeStamp("Build a GAM for the parent node.");
 		double trainAvgW = 0;
-		for (Instance instance : trainSet) 
+		for (Instance instance : trainSet)
 			trainAvgW += instance.getWeight();
 		trainAvgW /= trainSet.size();
 		double validAvgW = 0;
 		for (Instance instance : validSet)
 			validAvgW += instance.getWeight();
 		validAvgW /= validSet.size();
-		timeStamp("Compute average weight for training set " + String.format("%.16f", trainAvgW) 
+		timeStamp("Compute average weight for training set " + String.format("%.16f", trainAvgW)
 				+ " and validation set " + String.format("%.16f", validAvgW));
 		
 		GAMLearner learner = new GAMLearner();
@@ -684,12 +683,12 @@ public class InteractionTreeLearnerGAMMC{
 		
 	}
 	
-	protected double evaluateSplit(String tmpDir, Instances trainSet, Instances validSet, 
+	protected double evaluateSplit(String tmpDir, Instances trainSet, Instances validSet,
 			GAMLearner learner, Metric metric, int attIndex, FeatureSplit split, double splitPoint) throws Exception {
 		int attrN = ainfo.attributes.size();
 		int vNo;
 		PrintWriter out;
-		
+
 		// 8.1 Split the dataset
 		Instances trainLeft = new Instances(ainfo);
 		Instances trainRight = new Instances(ainfo);
@@ -700,9 +699,9 @@ public class InteractionTreeLearnerGAMMC{
 		split(validSet, attIndex, splitPoint, validLeft, validRight);
 		// 8.2 Build GAMMC and evaluate this split
 		Instances trainLeftGAM = trainLeft.copy();
-		Instances validLeftGAM = validLeft.copy();				
+		Instances validLeftGAM = validLeft.copy();
 		Instances trainRightGAM = trainRight.copy();
-		Instances validRightGAM = validRight.copy();				
+		Instances validRightGAM = validRight.copy();
 		//8.2.0 Replace missing values with zeros
 		for(Instance instance : trainLeftGAM)
 			for(int a = 0; a < attrN; a++)
@@ -720,7 +719,7 @@ public class InteractionTreeLearnerGAMMC{
 			for(int a = 0; a < attrN; a++)
 				if(Double.isNaN(instance.getValue(a)))
 					instance.setValue(a, 0);
-		
+
 		//8.2.1 Build GAM models
 		int actual_valid_size = validLeftGAM.size() + validRightGAM.size();
 		double[] targets = new double[actual_valid_size];
@@ -752,15 +751,15 @@ public class InteractionTreeLearnerGAMMC{
 		}
 
 		double splitScore = metric.eval(preds, targets, weights);
-		
+
 		out = new PrintWriter(tmpDir + File.separator + "split_" + split.feature.name + "_" + splitPoint + ".txt");
-		out.println(splitScore);		
+		out.println(splitScore);
 		out.flush();
 		out.close();
 
 		return splitScore;
 	}
-	
+
 	protected void visIPlot( File dir, String attr, String train, String valid, String tmpDir, 
 						List<Pair<String, String>> pairs, String suffix
 					  ) throws Exception{

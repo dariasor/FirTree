@@ -36,7 +36,7 @@ public class Error extends Metric {
 		System.exit(1);
 		return 0;
 	}
-	
+
 	@Override
 	public double eval(double[] preds, Instances instances) {
 		double error = 0;

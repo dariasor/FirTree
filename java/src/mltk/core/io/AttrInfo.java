@@ -43,7 +43,7 @@ public class AttrInfo {
 		}
 		return wtAttr.getColumn();
 	}
-	
+
 	public int idToCol(int id) {
 		return attributes.get(id).getColumn();
 	}

@@ -36,7 +36,7 @@ public class FirTree {
 		split_val = new ArrayList<Double>();
 		poly_degree = poly_degree_in;
 		ainfo = ainfo_in;
-		
+
 		BufferedReader treelog = new BufferedReader(new FileReader(dir + "/treelog.txt"), 65535);
 		String line_tree = treelog.readLine();
 
@@ -47,12 +47,12 @@ public class FirTree {
 			if(line_tree.matches("Not enough data.") || line_tree.matches("Const")){
 				node_type.add(NodeType.CONST);
 				split_attr_id.add(-1);
-				split_val.add(Double.POSITIVE_INFINITY);				
+				split_val.add(Double.POSITIVE_INFINITY);
 			}
 			if(line_tree.matches("No (.*)d.")){
 				node_type.add(NodeType.MODEL);
 				split_attr_id.add(-1);
-				split_val.add(Double.POSITIVE_INFINITY);				
+				split_val.add(Double.POSITIVE_INFINITY);
 			}
 			if(line_tree.matches("Best feature:(.*)")){
 				node_type.add(NodeType.SPLIT);
@@ -119,9 +119,9 @@ public class FirTree {
 					// there is a const on the node
 					BufferedReader constRead = new BufferedReader(new FileReader(dir + "/Node_" + node_name.get(nodeNo) + "/model_const.txt"));
 					String line = constRead.readLine();
-					const_val[nodeNo] = Double.parseDouble(line.split(": ")[1]); 
+					const_val[nodeNo] = Double.parseDouble(line.split(": ")[1]);
 					constRead.close();
-				} 
+				}
 			}
 		}
 	}
@@ -144,7 +144,7 @@ public class FirTree {
 					next_node = current_node + "_L";
 				} else {
 					next_node = current_node + "_R";
-				} 
+				}
 				int next_index = node_name.indexOf(next_node);
 				current_index = next_index;
 			} else {
@@ -225,9 +225,9 @@ public class FirTree {
 								tabs + "    double " + current_lr_attr + "_cap =\n" + tabs + "        (" + current_lr_attr +	" < " +
 								current_min + ") ?\n" + tabs + "        " + current_min + " :\n" + tabs + "        (" + current_lr_attr + " > " +
 								current_max + ") ? " + current_max + " : " + current_lr_attr + ";\n"
-							); 
+							);
 						}
-						//prediction = b0						
+						//prediction = b0
 						cpp_out.write("\n" + tabs + "    prediction = " + intercept_val[current_node_index]);
 						for(int lr_attr_index = 0; lr_attr_index < lr_attr_ids.get(current_node_index).size(); lr_attr_index++) {
 						    String current_lr_attr_cap = ainfo.idToName(lr_attr_ids.get(current_node_index).get(lr_attr_index)) + "_cap";
@@ -299,9 +299,9 @@ public class FirTree {
 							double current_min = current_lr_coefs.get(lr_attr_index).get(poly_degree);
 							double current_max = current_lr_coefs.get(lr_attr_index).get(poly_degree + 1);
 							//double xcap = Math.max(0.0, Math.min(x, 5760.0));
-							java_out.write(tabs + "    double " + current_lr_attr + "cap = Math.max(" + current_min + ", Math.min(" + current_lr_attr + ", " + current_max + "));\n"); 
+							java_out.write(tabs + "    double " + current_lr_attr + "cap = Math.max(" + current_min + ", Math.min(" + current_lr_attr + ", " + current_max + "));\n");
 						}
-						//prediction = b0						
+						//prediction = b0
 						java_out.write("\n" + tabs + "    prediction = " + intercept_val[current_node_index]);
 						for(int lr_attr_index = 0; lr_attr_index < lr_attr_ids.get(current_node_index).size(); lr_attr_index++) {
 						    String current_lr_attr_cap = ainfo.idToName(lr_attr_ids.get(current_node_index).get(lr_attr_index)).replace("_","") + "cap";

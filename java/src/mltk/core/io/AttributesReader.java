@@ -65,7 +65,7 @@ public class AttributesReader {
 				} else {
 					// If this is a feature, i.e., not the class and not the weight
 					i--;
-					continue;					
+					continue;
 				}
 			}
 			Attribute att = null;
