@@ -43,7 +43,7 @@ public class RMSE extends Metric {
 		rmse = Math.sqrt(rmse / length);
 		return rmse;
 	}
-	
+
 	@Override
 	public double eval(double[] preds, Instances instances) {
 		double rmse = 0;
