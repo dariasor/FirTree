@@ -12,13 +12,14 @@ import mltk.core.Attribute;
  * map from names to columns in the data file for all attributes. Columns start with zero
  * map from names to ids for active attributes
  * 
- * @author Daria Sorokina
+ * @author Daria Sorokina, modified by Xiaojie Wang
  * 
  */
 
 public class AttrInfo {
 	public List<Attribute> attributes;
 	public Attribute clsAttr;
+	public Attribute wtAttr;
 	public HashMap<String, Integer> nameToCol;	//defined for all attributes
 	public HashMap<String, Integer> nameToId;	//defined for active attributes only (inactive don't have id)
 	
@@ -35,6 +36,14 @@ public class AttrInfo {
 		return clsAttr.getColumn();
 	}
 	
+	public int getWtCol() {
+		if (wtAttr == null) {
+			System.out.println("Warning: weight column is not well defined");
+			return -1;
+		}
+		return wtAttr.getColumn();
+	}
+
 	public int idToCol(int id) {
 		return attributes.get(id).getColumn();
 	}

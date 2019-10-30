@@ -10,25 +10,25 @@ import java.util.Collections;
 import mltk.core.io.AttrInfo;
 
 public class FirTree {
-	
+
 	private enum NodeType { SPLIT, MODEL, CONST }
 
 	private AttrInfo ainfo;
-	
+
 	private ArrayList<String> node_name;
 	private ArrayList<NodeType> node_type;
 	private ArrayList<Integer> split_attr_id;
 	private ArrayList<Double> split_val;
 	private int poly_degree;
-	
+
 	private int nodeN;
 	private double[] const_val;
 	private double[] intercept_val;
 	private ArrayList<ArrayList<Integer>> lr_attr_ids;
 	private ArrayList<ArrayList<ArrayList<Double>>> lr_coefs;
-	
+
 	public FirTree(AttrInfo ainfo_in, String dir, int poly_degree_in) throws Exception {
-	
+
 		// Load treeforPred
 		node_name = new ArrayList<String>();
 		node_type = new ArrayList<NodeType>();
@@ -36,10 +36,10 @@ public class FirTree {
 		split_val = new ArrayList<Double>();
 		poly_degree = poly_degree_in;
 		ainfo = ainfo_in;
-		
+
 		BufferedReader treelog = new BufferedReader(new FileReader(dir + "/treelog.txt"), 65535);
 		String line_tree = treelog.readLine();
-		
+
 		while(line_tree != null){
 			if(line_tree.matches("Root(.*)")){
 				node_name.add(line_tree.trim());
@@ -47,12 +47,12 @@ public class FirTree {
 			if(line_tree.matches("Not enough data.") || line_tree.matches("Const")){
 				node_type.add(NodeType.CONST);
 				split_attr_id.add(-1);
-				split_val.add(Double.POSITIVE_INFINITY);				
+				split_val.add(Double.POSITIVE_INFINITY);
 			}
 			if(line_tree.matches("No (.*)d.")){
 				node_type.add(NodeType.MODEL);
 				split_attr_id.add(-1);
-				split_val.add(Double.POSITIVE_INFINITY);				
+				split_val.add(Double.POSITIVE_INFINITY);
 			}
 			if(line_tree.matches("Best feature:(.*)")){
 				node_type.add(NodeType.SPLIT);
@@ -60,7 +60,6 @@ public class FirTree {
 				split_attr_id.add(ainfo.nameToId.get(current_attr));
 				line_tree = treelog.readLine();
 				split_val.add(Double.parseDouble(line_tree.split(" ")[2]));
-				
 			}
 			line_tree = treelog.readLine();
 		}
@@ -86,7 +85,6 @@ public class FirTree {
 				intercept_val[nodeNo] = Double.parseDouble(line.split("\t")[1]);
 				line = lr_text.readLine();
 				while(line != null) {
-					
 					String[] lr_data_string = line.split("\t");
 					Integer attr_id = ainfo.nameToId.get(lr_data_string[0]);
 					if(attr_id == null)
@@ -95,7 +93,7 @@ public class FirTree {
 						System.exit(1);
 					}
 					hold_lr_attr_ids.add(attr_id);
-					
+
 					ArrayList<Double> tempnode_tempattr_model_coef = new ArrayList<Double>();
 					for(int i = 0; i < poly_degree + 2; i++){
 						// the last two items are (min and max) range of the attribute
@@ -121,18 +119,18 @@ public class FirTree {
 					// there is a const on the node
 					BufferedReader constRead = new BufferedReader(new FileReader(dir + "/Node_" + node_name.get(nodeNo) + "/model_const.txt"));
 					String line = constRead.readLine();
-					const_val[nodeNo] = Double.parseDouble(line.split(": ")[1]); 
+					const_val[nodeNo] = Double.parseDouble(line.split(": ")[1]);
 					constRead.close();
-				} 
+				}
 			}
 		}
 	}
-	
+
 	public double predict(String data_str) {
 		String[] data = data_str.split("\t");
 		int current_index = 0;
 		String next_node = new String();
-		
+
 		while(true){
 			String current_node = node_name.get(current_index);
 			NodeType current_type = node_type.get(current_index);
@@ -146,7 +144,7 @@ public class FirTree {
 					next_node = current_node + "_L";
 				} else {
 					next_node = current_node + "_R";
-				} 
+				}
 				int next_index = node_name.indexOf(next_node);
 				current_index = next_index;
 			} else {
@@ -180,60 +178,64 @@ public class FirTree {
 			}
 		}
 	}
-	
+
 	public void outcpp(String outputPath) throws Exception
 	{
 		BufferedWriter cpp_out = new BufferedWriter(new FileWriter(outputPath));
-		
+
 		String current_node_name = "Root";
 		Boolean first_time = true;
-		
-		cpp_out.write("\tdouble prediction = 0;\n\n");
-		
+
+		cpp_out.write("    double prediction = 0;\n\n");
+
 		while(true)
 		{
 			int current_node_index = node_name.indexOf(current_node_name);
 			NodeType current_type = node_type.get(current_node_index);
 			int height = current_node_name.length() - current_node_name.replace("_", "").length(); //number of "_" in the node name
-			String tabs = String.join("", Collections.nCopies(height, "\t")); //sequence of tabs
-			
+			String tabs = String.join("", Collections.nCopies(height, "    ")); //sequence of tabs, each tab is represented by 4 spaces
+
 			if(first_time)
 			{
 				if(current_node_name.endsWith("R"))
-					cpp_out.write(tabs + "}\n" + tabs + "else\n" + tabs + "{\n");
+					cpp_out.write(tabs + "} else {\n");
 
-				cpp_out.write(tabs + "\t//" + current_node_name + "\n");
-				
+				cpp_out.write(tabs + "    //" + current_node_name + "\n");
+
 				if(current_type == NodeType.SPLIT) 	{
 					double current_split_value = split_val.get(current_node_index);
 					String current_split_attr = ainfo.idToName(split_attr_id.get(current_node_index));
-					cpp_out.write(tabs + "\tif (" + current_split_attr + " <= " + current_split_value + ")\n" + tabs + "\t{\n");
+
+					cpp_out.write(tabs + "    if (" + current_split_attr + " <= " + current_split_value + ") {\n");
 					current_node_name += "_L";
 				} else {
 					first_time = false;
 					if(current_type == NodeType.CONST) {
-						cpp_out.write(tabs + "\tprediction = " + const_val[current_node_index] + ";\n");
+						cpp_out.write(tabs + "    prediction = " + const_val[current_node_index] + ";\n");
 					} else {
 						//linear regression model in the leaf
 						ArrayList<ArrayList<Double>> current_lr_coefs = lr_coefs.get(current_node_index);
-						
+
 						for(int lr_attr_index = 0; lr_attr_index < lr_attr_ids.get(current_node_index).size(); lr_attr_index++) {
-							String current_lr_attr = ainfo.idToName(lr_attr_ids.get(current_node_index).get(lr_attr_index));
+						    String current_lr_attr = ainfo.idToName(lr_attr_ids.get(current_node_index).get(lr_attr_index));
 							double current_min = current_lr_coefs.get(lr_attr_index).get(poly_degree);
 							double current_max = current_lr_coefs.get(lr_attr_index).get(poly_degree + 1);
 							//double x1_cap = (x1 < min1) ? min1 : (x1 > max1) ? max1 : x1;
-							cpp_out.write(tabs + "\tdouble " + current_lr_attr + "_cap = (" + current_lr_attr + " < " + current_min + ") ? " + current_min + " : (" + current_lr_attr + " > " 
-											+ current_max + ") ? " + current_max + " : " + current_lr_attr + ";\n");
+							cpp_out.write(
+								tabs + "    double " + current_lr_attr + "_cap =\n" + tabs + "        (" + current_lr_attr +	" < " +
+								current_min + ") ?\n" + tabs + "        " + current_min + " :\n" + tabs + "        (" + current_lr_attr + " > " +
+								current_max + ") ? " + current_max + " : " + current_lr_attr + ";\n"
+							);
 						}
-						//prediction = b0						
-						cpp_out.write("\n" + tabs + "\tprediction = " + intercept_val[current_node_index]);
+						//prediction = b0
+						cpp_out.write("\n" + tabs + "    prediction = " + intercept_val[current_node_index]);
 						for(int lr_attr_index = 0; lr_attr_index < lr_attr_ids.get(current_node_index).size(); lr_attr_index++) {
-							String current_lr_attr_cap = ainfo.idToName(lr_attr_ids.get(current_node_index).get(lr_attr_index)) + "_cap";
+						    String current_lr_attr_cap = ainfo.idToName(lr_attr_ids.get(current_node_index).get(lr_attr_index)) + "_cap";
 							// + x1_cap *
-							cpp_out.write("\n" + tabs + "\t\t\t\t+ " + current_lr_attr_cap + " * ");
+							cpp_out.write("\n" + tabs + "        + " + current_lr_attr_cap + " *\n" + tabs + "        ");
 							for(int degree_index = 0; degree_index < poly_degree - 1; degree_index++)
 								//(b11 + x1_cap * (b12 + x1_cap * ...
-								cpp_out.write("(" + current_lr_coefs.get(lr_attr_index).get(degree_index) + " + " + current_lr_attr_cap + " * ");
+								cpp_out.write("(" + current_lr_coefs.get(lr_attr_index).get(degree_index) + " + " + current_lr_attr_cap + " *\n" + tabs + "        ");
 							//b13)))
 							cpp_out.write(current_lr_coefs.get(lr_attr_index).get(poly_degree - 1) + String.join("", Collections.nCopies(poly_degree - 1, ")")));
 						}
@@ -252,7 +254,80 @@ public class FirTree {
 				}
 			}
 		}
-		
+
 		cpp_out.close();
+	}
+
+	public void outjava(String outputPath) throws Exception
+	{
+		BufferedWriter java_out = new BufferedWriter(new FileWriter(outputPath));
+		String current_node_name = "Root";
+		Boolean first_time = true;
+
+		java_out.write("        double prediction = 0;\n\n");
+
+		while(true)
+		{
+			int current_node_index = node_name.indexOf(current_node_name);
+			NodeType current_type = node_type.get(current_node_index);
+			int height = current_node_name.length() - current_node_name.replace("_", "").length() + 1; //number of "_" in the node name
+			String tabs = String.join("", Collections.nCopies(height, "    ")); //sequence of tabs, each tab is represented by 4 spaces
+
+			if(first_time)
+			{
+				if(current_node_name.endsWith("R"))
+					java_out.write(tabs + "} else {\n");
+
+				java_out.write(tabs + "    //" + current_node_name + "\n");
+
+				if(current_type == NodeType.SPLIT) 	{
+					double current_split_value = split_val.get(current_node_index);
+					String current_split_attr = ainfo.idToName(split_attr_id.get(current_node_index)).replace("_","");
+
+					java_out.write(tabs + "    if (" + current_split_attr + " <= " + current_split_value + ") {\n");
+					current_node_name += "_L";
+				} else {
+					first_time = false;
+					if(current_type == NodeType.CONST) {
+						java_out.write(tabs + "    prediction = " + const_val[current_node_index] + ";\n");
+					} else {
+						//linear regression model in the leaf
+						ArrayList<ArrayList<Double>> current_lr_coefs = lr_coefs.get(current_node_index);
+
+						for(int lr_attr_index = 0; lr_attr_index < lr_attr_ids.get(current_node_index).size(); lr_attr_index++) {
+						    String current_lr_attr = ainfo.idToName(lr_attr_ids.get(current_node_index).get(lr_attr_index)).replace("_","");
+							double current_min = current_lr_coefs.get(lr_attr_index).get(poly_degree);
+							double current_max = current_lr_coefs.get(lr_attr_index).get(poly_degree + 1);
+							//double xcap = Math.max(0.0, Math.min(x, 5760.0));
+							java_out.write(tabs + "    double " + current_lr_attr + "cap = Math.max(" + current_min + ", Math.min(" + current_lr_attr + ", " + current_max + "));\n");
+						}
+						//prediction = b0
+						java_out.write("\n" + tabs + "    prediction = " + intercept_val[current_node_index]);
+						for(int lr_attr_index = 0; lr_attr_index < lr_attr_ids.get(current_node_index).size(); lr_attr_index++) {
+						    String current_lr_attr_cap = ainfo.idToName(lr_attr_ids.get(current_node_index).get(lr_attr_index)).replace("_","") + "cap";
+							// + x1_cap *
+						    java_out.write("\n" + tabs + "        + " + current_lr_attr_cap + " *\n" + tabs + "        ");
+							for(int degree_index = 0; degree_index < poly_degree - 1; degree_index++)
+								//(b11 + x1_cap * (b12 + x1_cap * ...
+								java_out.write("(" + current_lr_coefs.get(lr_attr_index).get(degree_index) + " + " + current_lr_attr_cap + " *\n" + tabs + "        ");
+							//b13)))
+							java_out.write(current_lr_coefs.get(lr_attr_index).get(poly_degree - 1) + String.join("", Collections.nCopies(poly_degree - 1, ")")));
+						}
+						java_out.write(";\n");
+					}
+				}
+			} else {
+				if(current_node_name.endsWith("L")) {
+					current_node_name = current_node_name.replaceAll("L$","R"); //replace last L with R
+					first_time = true;
+				} else if(current_node_name.endsWith("R")) {
+					java_out.write(tabs + "}\n");
+					current_node_name = current_node_name.replaceAll("_R$",""); //remove last "_R"
+				} else {//Node_Root
+					break;
+				}
+			}
+		}
+		java_out.close();
 	}
 }

@@ -17,7 +17,7 @@ import mltk.core.NumericalAttribute;
  * It reads in a list of attributes, list of inactive attributes and a class attribute
  *  from the attribute file.
  * 
- * @author Yin Lou, modified by Daria Sorokina
+ * @author Yin Lou, modified by Daria Sorokina and Xiaojie Wang
  * 
  */
 public class AttributesReader {
@@ -50,6 +50,7 @@ public class AttributesReader {
 		
 		BufferedReader br2 = new BufferedReader(new FileReader(attFile), 65535);
 		ainfo.clsAttr = null;
+		ainfo.wtAttr = null;
 		for (int i = 0, col = 0;; i++, col++) {
 			line = br2.readLine();
 			if ((line == null) || (line.indexOf("contexts:") != -1)) {
@@ -58,8 +59,14 @@ public class AttributesReader {
 			String aname = line.split(": ")[0];
 			ainfo.nameToCol.put(aname, col);
 			if(neverNames.contains(aname)) {
-				i--;
-				continue;
+				if (line.indexOf("(class)") != -1 || line.indexOf("(weight)") != -1) {
+					// If this is the class or the weight, not a feature
+					neverNames.remove(aname);
+				} else {
+					// If this is a feature, i.e., not the class and not the weight
+					i--;
+					continue;
+				}
 			}
 			Attribute att = null;
 			if (line.indexOf("binned") != -1) {
@@ -73,6 +80,10 @@ public class AttributesReader {
 			if (line.indexOf("(class)") != -1) {
 				att.setIndex(-1);
 				ainfo.clsAttr = att;
+				i--;
+			} else if (line.indexOf("(weight)") != -1) {
+				att.setIndex(-2);
+				ainfo.wtAttr = att;
 				i--;
 			} else {
 				att.setIndex(i);

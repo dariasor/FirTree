@@ -18,24 +18,31 @@ import mltk.util.Queue;
 import mltk.util.Random;
 import mltk.util.tuple.*;
 
-
+/**
+ * Build feature interaction and regression tree (FirTree).
+ *
+ * @author Daria Sorokina, modified by Xiaojie Wang
+ *
+ */
 public class InteractionTreeLearnerGAMMC{
 	
-	static class MyThread extends Thread {
+	static class CreateNode extends Thread {
 		
+		Options opts;
+		InteractionTreeLearnerGAMMC app;
 		int limit;
 		String prefix;
 		int data_size; 
 		int zero_size;
 		InteractionTreeNode node;
-		InteractionTreeLearnerGAMMC app;
 		
-		MyThread(InteractionTreeLearnerGAMMC app, int data_size, int zero_size, String prefix, int limit) {
+		CreateNode(Options opts, InteractionTreeLearnerGAMMC app, int data_size, int zero_size, String prefix, int limit) {
+			this.opts = opts;
+			this.app = app;
 			this.data_size = data_size;
 			this.zero_size = zero_size;
 			this.prefix = prefix;
 			this.limit = limit;
-			this.app = app;
 			node = null;
 		}
 		
@@ -44,6 +51,62 @@ public class InteractionTreeLearnerGAMMC{
 				node = app.createNode(data_size, zero_size, prefix, limit);
 			} catch (Exception e) {
 				e.printStackTrace();
+				try {
+					PrintWriter pw = new PrintWriter(new BufferedWriter(new FileWriter(opts.dir + "/creation.err", true)));
+					pw.printf("Variable prefix %s\n", prefix);
+					pw.println(e.toString());
+					pw.println();
+					pw.flush();
+					pw.close();
+				} catch (IOException uncatched) {}
+			}
+		}
+	}
+
+	static class EvaluateSplit extends Thread {
+
+		Options opts;
+		InteractionTreeLearnerGAMMC app;
+		String tmpDir;
+		Instances trainSet;
+		Instances validSet;
+		GAMLearner learner;
+		Metric metric;
+		int attIndex;
+		FeatureSplit split;
+		double splitPoint;
+		double splitScore;
+
+		EvaluateSplit(Options opts, InteractionTreeLearnerGAMMC app, String tmpDir, Instances trainSet, Instances validSet,
+				GAMLearner learner, Metric metric, int attIndex, FeatureSplit split, double splitPoint) {
+			this.opts = opts;
+			this.app = app;
+			this.tmpDir = tmpDir;
+			this.trainSet = trainSet;
+			this.validSet = validSet;
+			this.learner = learner;
+			this.metric = metric;
+			this.attIndex = attIndex;
+			this.split = split;
+			this.splitPoint = splitPoint;
+		}
+
+		public void run() {
+			try {
+				splitScore = app.evaluateSplit(tmpDir, trainSet, validSet,
+						learner, metric, attIndex, split, splitPoint);
+			} catch (Exception e) {
+				e.printStackTrace();
+				try {
+					PrintWriter pw = new PrintWriter(new BufferedWriter(new FileWriter(opts.dir + "/evaluation.err", true)));
+					pw.printf("Variable tmpDir %s\n", tmpDir);
+					pw.printf("Variable attIndex %d\n", attIndex);
+					pw.printf("Variable splitPoint %f\n", splitPoint);
+					pw.println(e.toString());
+					pw.println();
+					pw.flush();
+					pw.close();
+				} catch (IOException uncatched) {}
 			}
 		}
 	}
@@ -254,8 +317,8 @@ public class InteractionTreeLearnerGAMMC{
 				DataSizes sizes = split(ainfo.attributes.get(interiorNode.attIndex).getColumn(), 
 						interiorNode.splitPoint, dataStr, dataStrL, dataStrR);
 		
-				MyThread lThread = new MyThread(this, sizes.left_size, sizes.left_zero_size, pre + "_L", limit);
-				MyThread rThread = new MyThread(this, sizes.right_size, sizes.right_zero_size, pre + "_R", limit);
+				CreateNode lThread = new CreateNode(opts, this, sizes.left_size, sizes.left_zero_size, pre + "_L", limit);
+				CreateNode rThread = new CreateNode(opts, this, sizes.right_size, sizes.right_zero_size, pre + "_R", limit);
 				lThread.start();
 				rThread.start();
 				lThread.join();
@@ -472,6 +535,16 @@ public class InteractionTreeLearnerGAMMC{
 		Instances validSet = InstancesReader.read(ainfo, valid, "\t+", true);
 
 		timeStamp("Build a GAM for the parent node.");
+		double trainAvgW = 0;
+		for (Instance instance : trainSet)
+			trainAvgW += instance.getWeight();
+		trainAvgW /= trainSet.size();
+		double validAvgW = 0;
+		for (Instance instance : validSet)
+			validAvgW += instance.getWeight();
+		validAvgW /= validSet.size();
+		timeStamp("Compute average weight for training set " + String.format("%.16f", trainAvgW)
+				+ " and validation set " + String.format("%.16f", validAvgW));
 		
 		GAMLearner learner = new GAMLearner();
 		Metric metric;
@@ -505,14 +578,16 @@ public class InteractionTreeLearnerGAMMC{
 		
 		double[] targetsValid = new double[validGAM.size()];
 		double[] predsValid = new double[validGAM.size()];
+		double[] weightsValid = new double[validGAM.size()];
 		int vNo = 0;
 		for (Instance instance : validGAM) {
 			predsValid[vNo] = gam.regress(instance);
 			targetsValid[vNo] = instance.getTarget();
+			weightsValid[vNo] = instance.getWeight();
 			vNo++;
 		}
 		
-		double parentScore = metric.eval(predsValid, targetsValid);
+		double parentScore = metric.eval(predsValid, targetsValid, weightsValid);
 		sb.append("Parent " + metric.toString() + ": " + parentScore + "\n");		
 
 		PrintWriter out = new PrintWriter(tmpDir + File.separator + "parent.txt");
@@ -546,86 +621,31 @@ public class InteractionTreeLearnerGAMMC{
 		double bestSplit = -1;
 		double bestScore = metric.worstValue();
 		
+		List<EvaluateSplit> threads = new ArrayList<>();
 		for (int i = 0; i < candidateFeatures.size(); i++) {
 			int attIndex = ainfo.nameToId.get((candidateFeatureNames.get(i)));
 			FeatureSplit split = new FeatureSplit(candidateFeatures.get(i));		
 			for (int j = 0; j < split.splits.length; j++) {
-				
 				double splitPoint = (split.feature.centers[j] + split.feature.centers[j + 1]) / 2;
 				timeStamp("Build and evaluate the split of feature #"+i+" split #"+j+".");
-				// 8.1 Split the dataset
-				Instances trainLeft = new Instances(ainfo);
-				Instances trainRight = new Instances(ainfo);
-				split(trainSet, attIndex, splitPoint, trainLeft, trainRight);
-
-				Instances validLeft = new Instances(ainfo);
-				Instances validRight = new Instances(ainfo);
-				split(validSet, attIndex, splitPoint, validLeft, validRight);
-				// 8.2 Build GAMMC and evaluate this split
-				Instances trainLeftGAM = trainLeft.copy();
-				Instances validLeftGAM = validLeft.copy();				
-				Instances trainRightGAM = trainRight.copy();
-				Instances validRightGAM = validRight.copy();				
-				//8.2.0 Replace missing values with zeros
-				for(Instance instance : trainLeftGAM)
-					for(int a = 0; a < attrN; a++)
-						if(Double.isNaN(instance.getValue(a)))
-							instance.setValue(a, 0);
-				for(Instance instance : trainRightGAM)
-					for(int a = 0; a < attrN; a++)
-						if(Double.isNaN(instance.getValue(a)))
-							instance.setValue(a, 0);
-				for(Instance instance : validLeftGAM)
-					for(int a = 0; a < attrN; a++)
-						if(Double.isNaN(instance.getValue(a)))
-							instance.setValue(a, 0);
-				for(Instance instance : validRightGAM)
-					for(int a = 0; a < attrN; a++)
-						if(Double.isNaN(instance.getValue(a)))
-							instance.setValue(a, 0);
-				
-				//8.2.1 Build GAM models
-				int actual_valid_size = validLeftGAM.size() + validRightGAM.size();
-				double[] targets = new double[actual_valid_size];
-				double[] preds = new double[actual_valid_size];
-				vNo = 0;
-				GAM gamL;
-				if(regression)
-					gamL = learner.buildRegressor(trainLeftGAM, validLeftGAM, 100, 3);
-				else
-					gamL = learner.buildClassifier(trainLeftGAM, validLeftGAM, 100, 3);
-				for (Instance instance : validLeftGAM) {
-					targets[vNo] = instance.getTarget();
-					preds[vNo] = gamL.regress(instance);
-					vNo++;
-				}
-
-				GAM gamR;
-				if(regression)
-					gamR = learner.buildRegressor(trainRightGAM, validRightGAM, 100, 3);
-				else
-					gamR = learner.buildClassifier(trainRightGAM, validRightGAM, 100, 3);
-				for (Instance instance : validRightGAM) {
-					targets[vNo] = instance.getTarget();
-					preds[vNo] = gamR.regress(instance);
-					vNo++;
-				}
-
-				double splitScore = metric.eval(preds, targets);
-				
-				out = new PrintWriter(tmpDir + File.separator + "split_" + split.feature.name + "_" + splitPoint + ".txt");
-				out.println(splitScore);		
-				out.flush();
-				out.close();
-				
-				if (metric.isFirstBetter(splitScore, bestScore)) {
-					bestScore = splitScore;
-					bestAtt = attIndex;
-					bestSplit = splitPoint;
-				}
+				threads.add(new EvaluateSplit(opts, this, tmpDir, trainSet, validSet, learner, metric, attIndex, split, splitPoint));
 			}
 		}
-	
+		for (EvaluateSplit thread : threads) {
+			thread.start();
+		}
+		for (EvaluateSplit thread : threads) {
+			thread.join();
+		}
+		for (EvaluateSplit thread : threads) {
+			if (metric.isFirstBetter(thread.splitScore, bestScore)) {
+				bestScore = thread.splitScore;
+				bestAtt = thread.attIndex;
+				bestSplit = thread.splitPoint;
+			}
+		}
+		timeStamp("Finish evaluating all of the splits");
+
 		//9. Final output: best split and its visualization
 		if (bestAtt >= 0) {
 			sb.append("Best " + metric + ": " + bestScore + "\n");
@@ -663,6 +683,83 @@ public class InteractionTreeLearnerGAMMC{
 		
 	}
 	
+	protected double evaluateSplit(String tmpDir, Instances trainSet, Instances validSet,
+			GAMLearner learner, Metric metric, int attIndex, FeatureSplit split, double splitPoint) throws Exception {
+		int attrN = ainfo.attributes.size();
+		int vNo;
+		PrintWriter out;
+
+		// 8.1 Split the dataset
+		Instances trainLeft = new Instances(ainfo);
+		Instances trainRight = new Instances(ainfo);
+		split(trainSet, attIndex, splitPoint, trainLeft, trainRight);
+
+		Instances validLeft = new Instances(ainfo);
+		Instances validRight = new Instances(ainfo);
+		split(validSet, attIndex, splitPoint, validLeft, validRight);
+		// 8.2 Build GAMMC and evaluate this split
+		Instances trainLeftGAM = trainLeft.copy();
+		Instances validLeftGAM = validLeft.copy();
+		Instances trainRightGAM = trainRight.copy();
+		Instances validRightGAM = validRight.copy();
+		//8.2.0 Replace missing values with zeros
+		for(Instance instance : trainLeftGAM)
+			for(int a = 0; a < attrN; a++)
+				if(Double.isNaN(instance.getValue(a)))
+					instance.setValue(a, 0);
+		for(Instance instance : trainRightGAM)
+			for(int a = 0; a < attrN; a++)
+				if(Double.isNaN(instance.getValue(a)))
+					instance.setValue(a, 0);
+		for(Instance instance : validLeftGAM)
+			for(int a = 0; a < attrN; a++)
+				if(Double.isNaN(instance.getValue(a)))
+					instance.setValue(a, 0);
+		for(Instance instance : validRightGAM)
+			for(int a = 0; a < attrN; a++)
+				if(Double.isNaN(instance.getValue(a)))
+					instance.setValue(a, 0);
+
+		//8.2.1 Build GAM models
+		int actual_valid_size = validLeftGAM.size() + validRightGAM.size();
+		double[] targets = new double[actual_valid_size];
+		double[] preds = new double[actual_valid_size];
+		double[] weights = new double[actual_valid_size];
+		vNo = 0;
+		GAM gamL;
+		if(regression)
+			gamL = learner.buildRegressor(trainLeftGAM, validLeftGAM, 100, 3);
+		else
+			gamL = learner.buildClassifier(trainLeftGAM, validLeftGAM, 100, 3);
+		for (Instance instance : validLeftGAM) {
+			targets[vNo] = instance.getTarget();
+			preds[vNo] = gamL.regress(instance);
+			weights[vNo] = instance.getWeight();
+			vNo++;
+		}
+
+		GAM gamR;
+		if(regression)
+			gamR = learner.buildRegressor(trainRightGAM, validRightGAM, 100, 3);
+		else
+			gamR = learner.buildClassifier(trainRightGAM, validRightGAM, 100, 3);
+		for (Instance instance : validRightGAM) {
+			targets[vNo] = instance.getTarget();
+			preds[vNo] = gamR.regress(instance);
+			weights[vNo] = instance.getWeight();
+			vNo++;
+		}
+
+		double splitScore = metric.eval(preds, targets, weights);
+
+		out = new PrintWriter(tmpDir + File.separator + "split_" + split.feature.name + "_" + splitPoint + ".txt");
+		out.println(splitScore);
+		out.flush();
+		out.close();
+
+		return splitScore;
+	}
+
 	protected void visIPlot( File dir, String attr, String train, String valid, String tmpDir, 
 						List<Pair<String, String>> pairs, String suffix
 					  ) throws Exception{
