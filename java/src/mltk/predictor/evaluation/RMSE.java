@@ -1,6 +1,8 @@
 package mltk.predictor.evaluation;
 
+import mltk.core.Instance;
 import mltk.core.Instances;
+import mltk.core.Pointers;
 
 /**
  * Class for evaluating root mean squared error (RMSE).
@@ -19,8 +21,6 @@ public class RMSE extends Metric {
 
 	@Override
 	public double eval(double[] preds, double[] targets) {
-		System.out.println("ERROR: do not support weights and use other eval instead");
-		System.exit(1);
 		double rmse = 0;
 		for (int i = 0; i < preds.length; i++) {
 			double d = targets[i] - preds[i];
@@ -37,6 +37,21 @@ public class RMSE extends Metric {
 		for (int i = 0; i < preds.length; i++) {
 			double d = targets[i] - preds[i];
 			double w = weights[i];
+			rmse += d * d * w;
+			length += w;
+		}
+		rmse = Math.sqrt(rmse / length);
+		return rmse;
+	}
+
+	@Override
+	public double eval(double[] preds, Instances instances, Pointers pointers) {
+		double rmse = 0;
+		double length = 0;
+		for (int i = 0; i < preds.length; i ++) {
+			Instance instance = instances.get(pointers.get(i).getIndex());
+			double d = instance.getTarget() - preds[i];
+			double w = instance.getWeight();
 			rmse += d * d * w;
 			length += w;
 		}
@@ -81,4 +96,5 @@ public class RMSE extends Metric {
 		double rmse = metric.eval(preds, instances);
 		System.out.printf("RMSE=%.6f\n", rmse * rmse);
 	}
+
 }

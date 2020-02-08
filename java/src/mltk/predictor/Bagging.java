@@ -6,17 +6,45 @@ import java.util.Map;
 
 import mltk.core.Instance;
 import mltk.core.Instances;
+import mltk.core.Pointer;
+import mltk.core.Pointers;
 import mltk.predictor.evaluation.Metric;
 import mltk.util.Random;
 
 /**
  * Class for creating bootstrap samples.
  * 
- * @author Yin Lou
+ * @author Yin Lou, modified by Xiaojie Wang
  * 
  */
 public class Bagging {
 
+	/**
+	 * Returns a bootstrap sample.
+	 * 
+	 * @param pointers the pointers to original data set.
+	 * @return a bootstrap sample.
+	 */
+	public static Pointers createBootstrapSample(Pointers pointers) {
+		Random rand = Random.getInstance();
+		Map<Integer, Integer> map = new HashMap<>();
+		for (int i = 0; i < pointers.size(); i++) {
+			int idx = rand.nextInt(pointers.size());
+			if (!map.containsKey(idx)) {
+				map.put(idx, 0);
+			}
+			map.put(idx, map.get(idx) + 1);
+		}
+		Pointers bag = new Pointers();
+		for (Integer idx : map.keySet()) {
+			int index = pointers.get(idx).getIndex();
+			int weight = map.get(idx);
+			Pointer pointer = new Pointer(index, weight);
+			bag.add(pointer);
+		}
+		return bag;
+	}
+	
 	/**
 	 * Returns a bootstrap sample.
 	 * 
@@ -37,7 +65,7 @@ public class Bagging {
 		for (Integer idx : map.keySet()) {
 			int weight = map.get(idx);
 			Instance instance = instances.get(idx).clone();
-			instance.setWeight(weight);
+			instance.setWeight(weight * instance.getWeight());
 			bag.add(instance);
 		}
 		return bag;
@@ -74,6 +102,27 @@ public class Bagging {
 		}
 	}
 
+	/**
+	 * Returns a set of bags.
+	 * 
+	 * @param pointers the pointers to original dataset.
+	 * @param baggingIter the number of bagging iterations.
+	 * @return a set of bags.
+	 */
+	public static Pointers[] createBags(Pointers pointers, int baggingIter) {
+		Pointers[] bags = null;
+		if (baggingIter <= 0) {
+			// No bagging
+			bags = new Pointers[] { pointers };
+		} else {
+			bags = new Pointers[baggingIter];
+			for (int i = 0; i < baggingIter; i++) {
+				bags[i] = Bagging.createBootstrapSample(pointers);
+			}
+		}
+		return bags;
+	}
+	
 	/**
 	 * Returns a set of bags.
 	 * 

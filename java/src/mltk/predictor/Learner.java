@@ -8,6 +8,7 @@ import java.util.TreeMap;
 import mltk.core.Attribute;
 import mltk.core.Instance;
 import mltk.core.Instances;
+import mltk.core.Pointers;
 import mltk.core.SparseVector;
 import mltk.predictor.evaluation.Error;
 import mltk.predictor.evaluation.Metric;
@@ -20,7 +21,7 @@ import mltk.util.tuple.IntDoublePair;
 /**
  * Class for learners.
  * 
- * @author Yin Lou
+ * @author Yin Lou, modified by Xiaojie Wang
  * 
  */
 public abstract class Learner {
@@ -87,6 +88,19 @@ public abstract class Learner {
 
 	}
 
+	/**
+	 * Builds a predictor from training set.
+	 * 
+	 * @param instances the original training set.
+	 * @param pointers the pointers to original training set.
+	 * @return a predictior.
+	 */
+	public Predictor build(Instances instances, double[] targets, Pointers pointers) {
+		System.err.println("Cannot call Learner.build");
+		System.exit(1);
+		return null;
+	}
+	
 	/**
 	 * Builds a predictor from training set.
 	 * 

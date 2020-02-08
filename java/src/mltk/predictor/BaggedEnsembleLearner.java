@@ -1,11 +1,12 @@
 package mltk.predictor;
 
 import mltk.core.Instances;
+import mltk.core.Pointers;
 
 /**
  * Class for learning bagged ensembles.
  * 
- * @author Yin Lou
+ * @author Yin Lou, modified by Xiaojie Wang
  * 
  */
 public class BaggedEnsembleLearner extends Learner {
@@ -91,6 +92,21 @@ public class BaggedEnsembleLearner extends Learner {
 		return baggedEnsemble;
 	}
 
+	/**
+	 * Builds a bagged ensemble.
+	 * 
+	 * @param trainSet the original training set.
+	 * @param bags the bootstrap samples.
+	 * @return a bagged ensemble.
+	 */
+	public BaggedEnsemble build(Instances trainSet, double[] targets, Pointers[] bags) {
+		BaggedEnsemble baggedEnsemble = new BaggedEnsemble(bags.length);
+		for (Pointers bag : bags) {
+			baggedEnsemble.add(learner.build(trainSet, targets, bag));
+		}
+		return baggedEnsemble;
+	}
+	
 	/**
 	 * Builds a bagged ensemble.
 	 * 

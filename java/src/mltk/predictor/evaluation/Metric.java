@@ -1,6 +1,7 @@
 package mltk.predictor.evaluation;
 
 import mltk.core.Instances;
+import mltk.core.Pointers;
 
 /**
  * Class for evaluation metrics.
@@ -43,6 +44,15 @@ public abstract class Metric {
 			return Double.POSITIVE_INFINITY;
 		}
 	}
+	
+	/**
+	 * Evaluates predictions on a dataset.
+	 * 
+	 * @param preds the predictions.
+	 * @param instances the dataset.
+	 * @return the evaluation measure.
+	 */
+	public abstract double eval(double[] preds, Instances instances, Pointers pointers);
 	
 	/**
 	 * Evaluates predictions on a dataset.

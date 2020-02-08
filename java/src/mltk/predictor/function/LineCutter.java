@@ -10,6 +10,8 @@ import mltk.core.BinnedAttribute;
 import mltk.core.Instance;
 import mltk.core.Instances;
 import mltk.core.NominalAttribute;
+import mltk.core.Pointer;
+import mltk.core.Pointers;
 import mltk.predictor.Learner;
 import mltk.util.Random;
 import mltk.util.Element;
@@ -18,7 +20,7 @@ import mltk.util.tuple.DoublePair;
 /**
  * Class for cutting lines.
  * 
- * @author Yin Lou
+ * @author Yin Lou, modified by Xiaojie Wang
  * 
  */
 public class LineCutter extends Learner {
@@ -234,6 +236,30 @@ public class LineCutter extends Learner {
 	/**
 	 * Performs a line search for a function for classification.
 	 * 
+	 * @param instances the original training set.
+	 * @param pointers the pointers to original training set
+	 * @param func the function.
+	 */
+	public static void lineSearch(Instances instances, double[] targets, Pointers pointers, Function1D func) {
+		double[] predictions = func.getPredictions();
+		double[] numerator = new double[predictions.length];
+		double[] denominator = new double[numerator.length];
+		for (Pointer pointer : pointers) {
+			Instance instance = instances.get(pointer.getIndex());
+			int idx = func.getSegmentIndex(instance);
+			double weight = pointer.getWeight() * instance.getWeight();
+			numerator[idx] += targets[pointer.getIndex()] * weight;
+			double t = Math.abs(targets[pointer.getIndex()]);
+			denominator[idx] += t * (1 - t) * weight;
+		}
+		for (int i = 0; i < predictions.length; i++) {
+			predictions[i] = denominator[i] == 0 ? 0 : numerator[i] / denominator[i];
+		}
+	}
+
+	/**
+	 * Performs a line search for a function for classification.
+	 * 
 	 * @param instances the training set.
 	 * @param func the function.
 	 */
@@ -348,6 +374,16 @@ public class LineCutter extends Learner {
 	}
 
 	@Override
+	public Function1D build(Instances instances, double[] targets, Pointers pointers) {
+		if (! leafLimited) {
+			System.err.println("Cannot call LineCutter.build");
+			System.exit(1);
+		}
+		Function1D func = leafLimited ? build(instances, targets, pointers, attIndex, numIntervals) : build(instances, attIndex, alpha);
+		return func;
+	}
+	
+	@Override
 	public Function1D build(Instances instances) {
 		Function1D func = leafLimited ? build(instances, attIndex, numIntervals) : build(instances, attIndex, alpha);
 		return func;
@@ -436,6 +472,98 @@ public class LineCutter extends Learner {
 
 		if (lineSearch) {
 			lineSearch(instances, func);
+		}
+
+		return func;
+	}
+
+	/**
+	 * Builds a 1D function.
+	 * 
+	 * @param instances the original training set.
+	 * @param pointers the pointers to original training set.
+	 * @param attribute the attribute.
+	 * @param numIntervals the number of intervals.
+	 * @return a 1D function.
+	 */
+	public Function1D build(Instances instances, double[] targets, Pointers pointers, Attribute attribute, int numIntervals) {
+		Function1D func = new Function1D();
+		func.attIndex = attribute.getIndex();
+
+		if (attribute.getType() == Attribute.Type.NUMERIC) {
+			// weight: attribute value
+			// DoublePair.v1: target value
+			// DoublePair.v2: instance weight
+			List<Element<DoublePair>> pairs = new ArrayList<>(pointers.size());
+			for (Pointer pointer : pointers) {
+				Instance instance = instances.get(pointer.getIndex());
+				double weight = pointer.getWeight() * instance.getWeight();
+				double value = instance.getValue(func.attIndex);
+				double target = targets[pointer.getIndex()];
+				pairs.add(new Element<DoublePair>(new DoublePair(target, weight), value));
+			}
+			Collections.sort(pairs);
+
+			List<Double> uniqueValues = new ArrayList<>();
+			List<DoublePair> stats = new ArrayList<>();
+			getStats(pairs, uniqueValues, stats);
+
+			build(func, uniqueValues, stats, numIntervals);
+		} else if (attribute.getType() == Attribute.Type.BINNED) {
+			// Building histograms
+			BinnedAttribute attr = (BinnedAttribute) attribute;
+			DoublePair[] histogram = new DoublePair[attr.getNumBins()];
+			for (int i = 0; i < histogram.length; i++) {
+				histogram[i] = new DoublePair(0, 0);
+			}
+			for (Pointer pointer : pointers) {
+				Instance instance = instances.get(pointer.getIndex());
+				int idx = (int) instance.getValue(func.attIndex);
+				double weight = pointer.getWeight() * instance.getWeight();
+				histogram[idx].v2 += targets[pointer.getIndex()] * weight;
+				histogram[idx].v1 += weight;
+			}
+
+			List<Double> uniqueValues = new ArrayList<>(histogram.length);
+			List<DoublePair> stats = new ArrayList<>(histogram.length);
+			for (int i = 0; i < histogram.length; i++) {
+				if (histogram[i].v1 != 0) {
+					stats.add(histogram[i]);
+					uniqueValues.add((double) i);
+				}
+			}
+
+			build(func, uniqueValues, stats, numIntervals);
+		} else {
+			// Nominal attributes
+			// Building histograms
+			NominalAttribute attr = (NominalAttribute) attribute;
+			DoublePair[] histogram = new DoublePair[attr.getStates().length];
+			for (int i = 0; i < histogram.length; i++) {
+				histogram[i] = new DoublePair(0, 0);
+			}
+			for (Pointer pointer : pointers) {
+				Instance instance = instances.get(pointer.getIndex());
+				int idx = (int) instance.getValue(func.attIndex);
+				double weight = pointer.getWeight() * instance.getWeight();
+				histogram[idx].v2 += targets[pointer.getIndex()] * weight;
+				histogram[idx].v1 += weight;
+			}
+
+			List<Double> uniqueValues = new ArrayList<>(histogram.length);
+			List<DoublePair> stats = new ArrayList<>(histogram.length);
+			for (int i = 0; i < histogram.length; i++) {
+				if (histogram[i].v1 != 0) {
+					stats.add(histogram[i]);
+					uniqueValues.add((double) i);
+				}
+			}
+
+			build(func, uniqueValues, stats, numIntervals);
+		}
+
+		if (lineSearch) {
+			lineSearch(instances, targets, pointers, func);
 		}
 
 		return func;
@@ -540,6 +668,20 @@ public class LineCutter extends Learner {
 		return build(instances, attribute, alpha);
 	}
 
+	/**
+	 * Builds a 1D function.
+	 * 
+	 * @param instances the original training set.
+	 * @param pointers the pointers to original training set.
+	 * @param attIndex the index in the attribute list of the training set.
+	 * @param numIntervals the number of intervals.
+	 * @return a 1D function.
+	 */
+	public Function1D build(Instances instances, double[] targets, Pointers pointers, int attIndex, int numIntervals) {
+		Attribute attribute = instances.getAttributes().get(attIndex);
+		return build(instances, targets, pointers, attribute, numIntervals);
+	}
+	
 	/**
 	 * Builds a 1D function.
 	 * 

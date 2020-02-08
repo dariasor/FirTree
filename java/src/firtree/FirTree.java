@@ -49,7 +49,7 @@ public class FirTree {
 				split_attr_id.add(-1);
 				split_val.add(Double.POSITIVE_INFINITY);
 			}
-			if(line_tree.matches("No (.*)d.")){
+			if(line_tree.matches("No (.*)d.") || line_tree.matches("Depth limit reached.")){
 				node_type.add(NodeType.MODEL);
 				split_attr_id.add(-1);
 				split_val.add(Double.POSITIVE_INFINITY);

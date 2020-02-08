@@ -1,5 +1,8 @@
 package mltk.util;
 
+import mltk.core.Instances;
+import mltk.core.Pointers;
+
 /**
  * Class for utility functions for optimization.
  * 
@@ -41,6 +44,19 @@ public class OptimUtils {
 			return 1 / (1 + Math.exp(pred));
 		} else {
 			return -1 / (1 + Math.exp(-pred));
+		}
+	}
+	
+	/**
+	 * Computes the pseudo residuals.
+	 * 
+	 * @param prediction the prediction array.
+	 * @param y the class label array.
+	 * @param residual the residual array.
+	 */
+	public static void computePseudoResidual(double[] prediction, Instances trainSet, Pointers trainPtr, double[] residual) {
+		for (int i = 0; i < residual.length; i++) {
+			residual[i] = getPseudoResidual(prediction[i], trainSet.get(trainPtr.get(i).getIndex()).getTarget());
 		}
 	}
 	

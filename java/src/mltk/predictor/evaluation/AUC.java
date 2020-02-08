@@ -3,7 +3,9 @@ package mltk.predictor.evaluation;
 import java.util.Arrays;
 import java.util.Comparator;
 
+import mltk.core.Instance;
 import mltk.core.Instances;
+import mltk.core.Pointers;
 import mltk.util.tuple.DoublePair;
 import mltk.util.tuple.DoubleTriple;
 
@@ -78,6 +80,16 @@ public class AUC extends Metric {
 		return eval(a);
 	}
 
+	@Override
+	public double eval(double[] preds, Instances instances, Pointers pointers) {
+		DoubleTriple[] a = new DoubleTriple[preds.length];
+		for (int i = 0; i < preds.length; i++) {
+			Instance instance = instances.get(pointers.get(i).getIndex());
+			a[i] = new DoubleTriple(preds[i], instance.getTarget(), instance.getWeight());
+		}
+		return eval(a);
+	}
+	
 	@Override
 	public double eval(double[] preds, Instances instances) {
 //		DoublePair[] a = new DoublePair[preds.length];
@@ -189,4 +201,5 @@ public class AUC extends Metric {
 		double auc = metric.eval(a);
 		System.out.printf("AUC=%.6f\n", auc);
 	}
+	
 }

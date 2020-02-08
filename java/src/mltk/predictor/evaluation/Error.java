@@ -1,6 +1,7 @@
 package mltk.predictor.evaluation;
 
 import mltk.core.Instances;
+import mltk.core.Pointers;
 
 /**
  * Class for evaluating error rate.
@@ -37,6 +38,13 @@ public class Error extends Metric {
 		return 0;
 	}
 
+	@Override
+	public double eval(double[] preds, Instances instances, Pointers pointers) {
+		System.err.println("Cannot call Error.eval");
+		System.exit(1);
+		return 0;
+	}
+	
 	@Override
 	public double eval(double[] preds, Instances instances) {
 		double error = 0;
