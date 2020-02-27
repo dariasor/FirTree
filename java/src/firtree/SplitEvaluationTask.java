@@ -17,12 +17,13 @@ public class SplitEvaluationTask implements Callable<Triple<Integer, Double, Dou
 	GAMLearner learner;
 	Metric metric;
 	int attIndex;
+	String featureName;
 	FeatureSplit split;
 	double splitPoint;
 	double splitScore;
 	
 	public SplitEvaluationTask(InteractionTreeLearnerGAMMC app, String tmpDir, 
-			Instances trainSet, Instances validSet, GAMLearner learner, Metric metric, int attIndex, FeatureSplit split, double splitPoint) {
+			Instances trainSet, Instances validSet, GAMLearner learner, Metric metric, int attIndex, String featureName, FeatureSplit split, double splitPoint) {
 		this.app = app;
 		this.tmpDir = tmpDir;
 		this.trainSet = trainSet;
@@ -30,13 +31,14 @@ public class SplitEvaluationTask implements Callable<Triple<Integer, Double, Dou
 		this.learner = learner;
 		this.metric = metric;
 		this.attIndex = attIndex;
+		this.featureName = featureName;
 		this.split = split;
 		this.splitPoint = splitPoint;
 	}
 
 	@Override
 	public Triple<Integer, Double, Double> call() throws Exception {
-		long sleep = 16; // TODO: Set to 16
+		long sleep = 16; 
 		while (true) {
 			try {
 				long start = System.currentTimeMillis();
@@ -51,10 +53,10 @@ public class SplitEvaluationTask implements Callable<Triple<Integer, Double, Dou
 				
 				long stop = System.currentTimeMillis();
 				long elapse = (stop - start) / (1000 * 60) + 1;
-				InteractionTreeLearnerGAMMC.timeStamp(String.format("Evaluating feature %d split %f is successful in %d min", attIndex, splitPoint, elapse));
+				InteractionTreeLearnerGAMMC.timeStamp("Completed evaluation of feature " + featureName + " split " + splitPoint + " in " + elapse + " min");
 				break;
 			} catch (OutOfMemoryError rerun) {
-				InteractionTreeLearnerGAMMC.timeStamp(String.format("Evaluating feature %d split %f will be rerun in %d min", attIndex, splitPoint, sleep));
+				InteractionTreeLearnerGAMMC.timeStamp("Evaluation of feature " + featureName + " split " + splitPoint + " failed and will be rerun in " + sleep + " min");
 				try {
 					TimeUnit.MINUTES.sleep(sleep);
 				} catch (InterruptedException e) {
