@@ -417,7 +417,7 @@ public class InteractionTreeLearnerGAMMC{
 		StringBuilder sb = new StringBuilder();
 		sb.append(prefix + "\n");
 		if (data_size < opts.leafSize) {
-			sb.append("Not enough data.\n");
+			sb.append("Constant leaf. Not enough data.\n");
 			printLog(sb);		
 			return new InteractionTreeLeaf();
 		}
@@ -456,7 +456,7 @@ public class InteractionTreeLearnerGAMMC{
 			}
 		}
 		if (allSame) {
-			sb.append("All data points have the same label.\n");
+			sb.append("Constant leaf. All data points have the same label.\n");
 			printLog(sb);
 			return new InteractionTreeLeaf();
 		}
@@ -514,12 +514,12 @@ public class InteractionTreeLearnerGAMMC{
 		//3a. If number of leaves or height limit reached, stop here.
 		if (tree_size_limit_reached)
 		{
-			visAllEffectPlots(tmpDir, dir, attrfs12, train, valid, sb, "Number of leaves limit reached");
+			visAllEffectPlots(tmpDir, dir, attrfs12, train, valid, sb, "Regression leaf. Number of leaves limit reached");
 			return new InteractionTreeLeaf();			
 		}
 		if (prefix.length() > opts.maxHeight * 2)
 		{
-			visAllEffectPlots(tmpDir, dir, attrfs12, train, valid, sb, "Branch height limit reached");
+			visAllEffectPlots(tmpDir, dir, attrfs12, train, valid, sb, "Regression leaf. Branch height limit reached");
 			return new InteractionTreeLeaf();			
 		}
 		
@@ -652,11 +652,11 @@ public class InteractionTreeLearnerGAMMC{
 				return new InteractionTreeInteriorNode(bestAtt, bestSplit);
 
 			} else {
-				visAllEffectPlots(tmpDir, dir, attrfs12, train, valid, sb, "No improvement found");
+				visAllEffectPlots(tmpDir, dir, attrfs12, train, valid, sb, "Regression leaf. No improvement found.");
 				return new InteractionTreeLeaf();
 			}
 		} else {
-			visAllEffectPlots(tmpDir, dir, attrfs12, train, valid, sb, "No interactions found");
+			visAllEffectPlots(tmpDir, dir, attrfs12, train, valid, sb, "Regression leaf. No interactions found.");
 			return new InteractionTreeLeaf();
 		}		
 	}

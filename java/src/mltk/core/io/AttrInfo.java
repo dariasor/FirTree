@@ -51,4 +51,8 @@ public class AttrInfo {
 	public String idToName(int id) {
 		return attributes.get(id).getName();
 	}
+	
+	public int getColN() {
+		return nameToCol.size();
+	}
 }

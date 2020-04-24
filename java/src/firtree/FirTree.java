@@ -44,12 +44,12 @@ public class FirTree {
 			if(line_tree.matches("Root(.*)")){
 				node_name.add(line_tree.trim());
 			}
-			if(line_tree.matches("Not enough data.") || line_tree.matches("Const")){
+			if(line_tree.matches("Constant leaf")){
 				node_type.add(NodeType.CONST);
 				split_attr_id.add(-1);
 				split_val.add(Double.POSITIVE_INFINITY);
 			}
-			if(line_tree.matches("No (.*)d.") || line_tree.matches("Depth limit reached.")){
+			if(line_tree.matches("Regression leaf")){
 				node_type.add(NodeType.MODEL);
 				split_attr_id.add(-1);
 				split_val.add(Double.POSITIVE_INFINITY);
@@ -128,6 +128,11 @@ public class FirTree {
 
 	public double predict(String data_str) {
 		String[] data = data_str.split("\t");
+		if(data.length != ainfo.getColN())
+		{ 
+			System.err.println("The number of columns in the data does not match the number of attributes in the file.");
+			System.exit(1);
+		}
 		int current_index = 0;
 		String next_node = new String();
 
