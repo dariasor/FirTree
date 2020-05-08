@@ -514,12 +514,12 @@ public class InteractionTreeLearnerGAMMC{
 		//3a. If number of leaves or height limit reached, stop here.
 		if (tree_size_limit_reached)
 		{
-			visAllEffectPlots(tmpDir, dir, attrfs12, train, valid, sb, "Regression leaf. Number of leaves limit reached");
+			visAllEffectPlots(tmpDir, dir, attrfs12, train, valid, sb, "Regression leaf. Number of leaves limit reached.");
 			return new InteractionTreeLeaf();			
 		}
 		if (prefix.length() > opts.maxHeight * 2)
 		{
-			visAllEffectPlots(tmpDir, dir, attrfs12, train, valid, sb, "Regression leaf. Branch height limit reached");
+			visAllEffectPlots(tmpDir, dir, attrfs12, train, valid, sb, "Regression leaf. Branch height limit reached.");
 			return new InteractionTreeLeaf();			
 		}
 		
@@ -642,7 +642,7 @@ public class InteractionTreeLearnerGAMMC{
 				if(candType.compareTo("w") == 0)
 					sb.append("Weak interactions only.\n");
 				if(candType.compareTo("d") == 0)
-					visAllEffectPlots(tmpDir, dir, attrfs12, train, valid, sb, "Dominant feature split");
+					visAllEffectPlots(tmpDir, dir, attrfs12, train, valid, sb, "Dominant feature split.");
 				else {
 					runProcess(dir, VIS_MV, "BT_PLOTS");
 					runProcess(dir, VIS_SPLIT, "BT_PLOTS", ainfo.attributes.get(bestAtt).getName(), bestSplit+"");
@@ -667,7 +667,7 @@ public class InteractionTreeLearnerGAMMC{
 		visEffect(dir, attrfs12, train, valid, tmpDir, coreFeatureNames, "v1");
 		visEffect(dir, attrfs12, valid, train, tmpDir, coreFeatureNames, "v2");
 		runProcess(dir, VIS_MV, "BT_PLOTS");
-		sb.append(NodeLabel + ".\n");
+		sb.append(NodeLabel + "\n");
 		printLog(sb);		
 	}
 	
