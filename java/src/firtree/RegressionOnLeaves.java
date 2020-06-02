@@ -40,42 +40,16 @@ public class RegressionOnLeaves {
 
 		long start = System.currentTimeMillis();
 
-		// load attrFile.  This helps identify corresponding column index of selected attributes
-
+		//Load attrFile and tree structure.
+		
 		timeStamp("Load attrFile");
 		AttrInfo ainfo_core = AttributesReader.read(opts.attPath);
-
-		// Identify tree leaves that will (1) contain LR models, (2) predict constants;
-
-		timeStamp("Identify tree leaves");
-
-		Vector<String> leavesConst = new Vector<String>();
-		Vector<String> leavesModel = new Vector<String>();
-
-		BufferedReader treelog = new BufferedReader(new FileReader(opts.dir + "/treelog.txt"), 65535);
-		String line_tree = treelog.readLine();
-		String current_node = new String();
-
-		while(line_tree != null){
-			if(line_tree.matches("Root(.*)")){
-				current_node = line_tree;
-			}
-			if(line_tree.matches("Not enough data.") || line_tree.matches("Const")){
-				leavesConst.add(current_node);
-			}
-			if(line_tree.matches("No (.*)d.")){
-				leavesModel.add(current_node);
-			}
-			if(line_tree.matches("Best feature:(.*)")){
-				line_tree = treelog.readLine();
-			}
-			line_tree = treelog.readLine();
-		}
-		treelog.close();
-
-
-		// Train model on each leafModel
-		timeStamp("-------------- Train model on each leafModel --------------");
+		FirTree model = new FirTree(ainfo_core, opts.dir, 0);
+		ArrayList<String> leavesModel = model.getRegressionLeaves();
+		ArrayList<String> leavesConst = model.getConstLeaves();
+		
+		// Train model on each regression leaf
+		timeStamp("-------------- Train model on each regression leaf --------------");
 
 		for(int i_leaf = 0; i_leaf < leavesModel.size(); i_leaf++){
 
@@ -94,7 +68,7 @@ public class RegressionOnLeaves {
 			List<List<Double>> xMat_arraylist = new ArrayList<List<Double>>(); //dynamic memory for temp data storage - features
 			ArrayList<Double> y_double_arraylist = new ArrayList<Double>(); //dynamic memory for temp data storage - labels
 
-			for(String line = br_dta.readLine(); line != null; line = br_dta.readLine()){
+			for(String line = br_dta.readLine(); line != null; line = br_dta.readLine()) {
 				String[] data = line.split("\t+");
 				y_double_arraylist.add(Double.parseDouble(data[ainfo_core.getClsCol()]));
 				ArrayList<Double> current_selected_attr = new ArrayList<Double>();

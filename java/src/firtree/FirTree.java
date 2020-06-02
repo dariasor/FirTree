@@ -19,9 +19,9 @@ public class FirTree {
 	private ArrayList<NodeType> node_type;
 	private ArrayList<Integer> split_attr_id;
 	private ArrayList<Double> split_val;
-	private int poly_degree;
-
 	private int nodeN;
+
+	private int poly_degree; //degree of polynomials in the leaf models. 0 means that the leaf models are not yet trained.
 	private double[] const_val;
 	private double[] intercept_val;
 	private ArrayList<ArrayList<Integer>> lr_attr_ids;
@@ -40,21 +40,21 @@ public class FirTree {
 		BufferedReader treelog = new BufferedReader(new FileReader(dir + "/treelog.txt"), 65535);
 		String line_tree = treelog.readLine();
 
-		while(line_tree != null){
-			if(line_tree.matches("Root(.*)")){
+		while(line_tree != null) {
+			if(line_tree.matches("Root(.*)")) {
 				node_name.add(line_tree.trim());
 			}
-			if(line_tree.matches("Constant leaf")){
+			if(line_tree.matches("Constant leaf")) {
 				node_type.add(NodeType.CONST);
 				split_attr_id.add(-1);
 				split_val.add(Double.POSITIVE_INFINITY);
 			}
-			if(line_tree.matches("Regression leaf")){
+			if(line_tree.matches("Regression leaf")) {
 				node_type.add(NodeType.MODEL);
 				split_attr_id.add(-1);
 				split_val.add(Double.POSITIVE_INFINITY);
 			}
-			if(line_tree.matches("Best feature:(.*)")){
+			if(line_tree.matches("Best feature:(.*)")) {
 				node_type.add(NodeType.SPLIT);
 				String current_attr = line_tree.split(" ")[2];
 				split_attr_id.add(ainfo.nameToId.get(current_attr));
@@ -64,68 +64,90 @@ public class FirTree {
 			line_tree = treelog.readLine();
 		}
 		treelog.close();
-
-		// Load models and constants on FirTree leaves
 		nodeN = node_name.size();
-		const_val = new double[nodeN];
-		intercept_val = new double[nodeN];
-		lr_attr_ids = new ArrayList<ArrayList<Integer>>(nodeN);
-		lr_coefs = new ArrayList<ArrayList<ArrayList<Double>>>(nodeN);
-
-		for(int nodeNo = 0; nodeNo < node_name.size(); nodeNo++){
-
-			ArrayList<Integer> hold_lr_attr_ids = new ArrayList<Integer>();
-			ArrayList<ArrayList<Double>> hold_lr_attr_coefs = new ArrayList<ArrayList<Double>>();
-
-			if(node_type.get(nodeNo) == NodeType.MODEL) {
-				// there is a model on the leaf
-				String lr_file_name = dir + "/Node_" + node_name.get(nodeNo) + "/model_polydegree_" + poly_degree + ".txt";
-				BufferedReader lr_text = new BufferedReader(new FileReader(lr_file_name));
-				String line = lr_text.readLine();
-				intercept_val[nodeNo] = Double.parseDouble(line.split("\t")[1]);
-				line = lr_text.readLine();
-				while(line != null) {
-					String[] lr_data_string = line.split("\t");
-					Integer attr_id = ainfo.nameToId.get(lr_data_string[0]);
-					if(attr_id == null)
-					{
-						System.out.println("Error: not a valid attribute name " + lr_data_string[0] + " in " + lr_file_name);
-						System.exit(1);
-					}
-					hold_lr_attr_ids.add(attr_id);
-
-					ArrayList<Double> tempnode_tempattr_model_coef = new ArrayList<Double>();
-					for(int i = 0; i < poly_degree + 2; i++){
-						// the last two items are (min and max) range of the attribute
-						// the previous items are coefficients of the corresponding polynomial terms of the attribute
-						try {
-							tempnode_tempattr_model_coef.add(Double.parseDouble(lr_data_string[i + 1]));
-						} catch(Exception e) {
-							System.out.println("Error: can't parse " + lr_data_string[i + 1] + " in " + lr_file_name);
+		
+		if(poly_degree > 0) {
+			// Load models and constants on FirTree leaves
+			const_val = new double[nodeN];
+			intercept_val = new double[nodeN];
+			lr_attr_ids = new ArrayList<ArrayList<Integer>>(nodeN);
+			lr_coefs = new ArrayList<ArrayList<ArrayList<Double>>>(nodeN);
+	
+			for(int nodeNo = 0; nodeNo < node_name.size(); nodeNo++){
+	
+				ArrayList<Integer> hold_lr_attr_ids = new ArrayList<Integer>();
+				ArrayList<ArrayList<Double>> hold_lr_attr_coefs = new ArrayList<ArrayList<Double>>();
+	
+				if(node_type.get(nodeNo) == NodeType.MODEL) {
+					// there is a model on the leaf
+					String lr_file_name = dir + "/Node_" + node_name.get(nodeNo) + "/model_polydegree_" + poly_degree + ".txt";
+					BufferedReader lr_text = new BufferedReader(new FileReader(lr_file_name));
+					String line = lr_text.readLine();
+					intercept_val[nodeNo] = Double.parseDouble(line.split("\t")[1]);
+					line = lr_text.readLine();
+					while(line != null) {
+						String[] lr_data_string = line.split("\t");
+						Integer attr_id = ainfo.nameToId.get(lr_data_string[0]);
+						if(attr_id == null)
+						{
+							System.out.println("Error: not a valid attribute name " + lr_data_string[0] + " in " + lr_file_name);
 							System.exit(1);
 						}
+						hold_lr_attr_ids.add(attr_id);
+	
+						ArrayList<Double> tempnode_tempattr_model_coef = new ArrayList<Double>();
+						for(int i = 0; i < poly_degree + 2; i++){
+							// the last two items are (min and max) range of the attribute
+							// the previous items are coefficients of the corresponding polynomial terms of the attribute
+							try {
+								tempnode_tempattr_model_coef.add(Double.parseDouble(lr_data_string[i + 1]));
+							} catch(Exception e) {
+								System.out.println("Error: can't parse " + lr_data_string[i + 1] + " in " + lr_file_name);
+								System.exit(1);
+							}
+						}
+						hold_lr_attr_coefs.add(tempnode_tempattr_model_coef);
+						line = lr_text.readLine();
 					}
-					hold_lr_attr_coefs.add(tempnode_tempattr_model_coef);
-					line = lr_text.readLine();
-				}
-				lr_attr_ids.add(hold_lr_attr_ids);
-				lr_coefs.add(hold_lr_attr_coefs);
-				lr_text.close();
-			} else {
-				// there is no model on the node
-				lr_attr_ids.add(hold_lr_attr_ids);
-				lr_coefs.add(hold_lr_attr_coefs);
-				if(node_type.get(nodeNo) == NodeType.CONST) {
-					// there is a const on the node
-					BufferedReader constRead = new BufferedReader(new FileReader(dir + "/Node_" + node_name.get(nodeNo) + "/model_const.txt"));
-					String line = constRead.readLine();
-					const_val[nodeNo] = Double.parseDouble(line.split(": ")[1]);
-					constRead.close();
+					lr_attr_ids.add(hold_lr_attr_ids);
+					lr_coefs.add(hold_lr_attr_coefs);
+					lr_text.close();
+				} else {
+					// there is no model on the node
+					lr_attr_ids.add(hold_lr_attr_ids);
+					lr_coefs.add(hold_lr_attr_coefs);
+					if(node_type.get(nodeNo) == NodeType.CONST) {
+						// there is a const on the node
+						BufferedReader constRead = new BufferedReader(new FileReader(dir + "/Node_" + node_name.get(nodeNo) + "/model_const.txt"));
+						String line = constRead.readLine();
+						const_val[nodeNo] = Double.parseDouble(line.split(": ")[1]);
+						constRead.close();
+					}
 				}
 			}
 		}
 	}
 
+	//return list of names of regression leaves
+	public ArrayList<String> getRegressionLeaves() {
+		ArrayList<String> leafNames = new ArrayList<String>();
+		for(int i = 0; i < nodeN; i++)
+			if(node_type.get(i) == NodeType.MODEL) {
+				leafNames.add(node_name.get(i));
+			}
+		return leafNames;
+	}
+	
+	//return list of names of constant leaves
+	public ArrayList<String> getConstLeaves() {
+		ArrayList<String> leafNames = new ArrayList<String>();
+		for(int i = 0; i < nodeN; i++)
+			if(node_type.get(i) == NodeType.CONST) {
+				leafNames.add(node_name.get(i));
+			}
+		return leafNames;
+	}
+	
 	public double predict(String data_str) {
 		String[] data = data_str.split("\t");
 		if(data.length != ainfo.getColN())
@@ -336,3 +358,4 @@ public class FirTree {
 		java_out.close();
 	}
 }
+
