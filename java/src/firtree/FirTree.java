@@ -44,12 +44,12 @@ public class FirTree {
 			if(line_tree.matches("Root(.*)")) {
 				node_name.add(line_tree.trim());
 			}
-			if(line_tree.matches("Constant leaf")) {
+			if(line_tree.matches("Constant leaf(.*)")) {
 				node_type.add(NodeType.CONST);
 				split_attr_id.add(-1);
 				split_val.add(Double.POSITIVE_INFINITY);
 			}
-			if(line_tree.matches("Regression leaf")) {
+			if(line_tree.matches("Regression leaf(.*)")) {
 				node_type.add(NodeType.MODEL);
 				split_attr_id.add(-1);
 				split_val.add(Double.POSITIVE_INFINITY);
