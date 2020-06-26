@@ -131,7 +131,7 @@ public class RegressionOnLeaves {
 				attr_range.add(current_attr_range);
 			}
 
-			timeStamp("Saving the model");
+			timeStamp("Save the model");
 
 			BufferedWriter modelTrans_out = new BufferedWriter(new FileWriter(dataNodePath + "/model_polydegree_" + opts.poly_degree + ".txt"));
 
@@ -164,7 +164,7 @@ public class RegressionOnLeaves {
 
 			// read dta file, only need to read the target column
 
-			timeStamp("Load dta data");
+			timeStamp("Load data");
 
 			BufferedReader br_dta = new BufferedReader(new FileReader(dataNodePath + "/fir.dta"));
 			ArrayList<Double> y_double_arraylist = new ArrayList<Double>();
