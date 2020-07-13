@@ -151,7 +151,7 @@ public class InstancesReader {
 	 * @param ainfo attribute information containing the class index.
 	 * @return a dense instance from strings.
 	 */
-	private static Instance parseDenseInstance(String[] data, AttrInfo ainfo, boolean allowMV) {
+	public static Instance parseDenseInstance(String[] data, AttrInfo ainfo, boolean allowMV) {
 		double[] vector = new double[ainfo.attributes.size()];
 		for (int i = 0; i < vector.length; i++) {
 			int col = ainfo.attributes.get(i).getColumn();
