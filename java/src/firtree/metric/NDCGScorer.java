@@ -3,6 +3,8 @@ package firtree.metric;
 import java.util.HashMap;
 import java.util.Map;
 
+import firtree.utilities.Instance;
+import firtree.utilities.RankLibError;
 import firtree.utilities.RankList;
 import firtree.utilities.Sorter;
 
@@ -12,40 +14,34 @@ import firtree.utilities.Sorter;
 public class NDCGScorer extends DCGScorer {
 	
 	// Cache the ideal gain corresponding to group id
-	protected Map<String, Double> idealGains;
+	protected Map<String, Double> group_id_to_max_dcg;
 	
 	public NDCGScorer() {
 		super();
-		idealGains = new HashMap<>();
+		group_id_to_max_dcg = new HashMap<>();
 	}
 	
 	@Override
 	public double score(RankList rl) {
-		if (rl.size() == 0) {
-			return 0;
-		}
-
-		int size = k;
-		if (k > rl.size() || k <= 0) {
-			size = rl.size();
-		}
+		if (rl.size() == 0)
+			return 0.;
 
 		double[] targets = getTargets(rl);
 		double[] predictions = getPredictions(rl);
 		
-		double ideal = 0;
-		Double d = idealGains.get(rl.getGroupId());
-		if (d != null) {
-			ideal = d;
+		double max_dcg = 0.;
+		if (group_id_to_max_dcg.containsKey(rl.getGroupId())) {
+			max_dcg = group_id_to_max_dcg.get(rl.getGroupId());
 		} else {
-			ideal = getIdealDCG(targets, size);
-			idealGains.put(rl.getGroupId(), ideal);
+			max_dcg = get_max_dcg(targets);
+			group_id_to_max_dcg.put(rl.getGroupId(), max_dcg);
 		}
 		
-		if(ideal <= 0.0) {
-			return 0.0;
-		}
-		return getDCG(targets, predictions, size) / ideal;
+		if (max_dcg < Math.pow(10, -10))
+			return 0.;
+
+		double dcg = getDCG(targets, predictions);
+		return dcg / max_dcg;
 	}
 	
 	@Override
@@ -58,13 +54,123 @@ public class NDCGScorer extends DCGScorer {
 		return "NDCG@" + k;
 	}
 	
-	private double getIdealDCG(double[] targets, int topK) {
-		int[] idx = Sorter.sort(targets, false);
-		double dcg = 0;
-		for (int i = 0; i < topK; i ++) {
-			dcg += targets[idx[i]] * discount(i);
+	private double get_max_dcg(double[] targets) {
+		String gain_type = "exponential";
+		int[] idx_to_pos = Sorter.sort(targets, false);
+		
+		double max_dcg = 0.0;
+		for (int idx = 0; idx < targets.length; idx ++) {
+			// rank starts with 1, idx starts with 0
+			int rank = idx + 1;
+			
+			// break if position is larger than ndcg_depth
+			if (rank > k)
+				break;
+			
+			double target = targets[idx_to_pos[idx]];
+			
+        	double gain;
+        	if (gain_type.equals("linear"))
+        		gain = target;
+        	else if (gain_type.equals("exponential"))
+        		gain = Math.pow(2.0, target) - 1;
+        	else
+        		throw RankLibError.create(String.format(
+        				"Invalid gain_type '%s'. Use 'linear' for linear gain or 'exponential' for exponential gain", 
+        				gain_type
+        				));
+        	
+        	max_dcg += gain / logrank(idx);
 		}
-		return dcg;
+		
+		return max_dcg;
+	}
+	
+	private static void test_calculate_ndcg_whenUnweightedData_thenAccurateNDCG(
+			NDCGScorer scorer,
+			String groupId,
+			double[] predictions,
+			double[] targets,
+			double true_ndcg
+			) {
+		
+		RankList rankList = new RankList(groupId);
+		for (int i = 0; i < predictions.length; i ++) {
+			Instance instance = new Instance(new mltk.core.Instance(new double[0], targets[i]));
+			instance.setPrediction(predictions[i]);
+			rankList.add(instance);
+		}
+		double pred_ndcg = scorer.score(rankList);
+		if (Math.abs(pred_ndcg - true_ndcg) > Math.pow(10, -10)) {
+			System.err.printf("%s fails due to %.10f (pred) != %.10f (true)\n", 
+					groupId, pred_ndcg, true_ndcg);
+			System.exit(1);
+		} else 
+			System.out.printf("%s succeeds\n", groupId);
+	}
+	
+	public static void main(String[] args) {
+		NDCGScorer scorer = new NDCGScorer();
+		for (int i = 0; i < 3; i ++) {
+			test_calculate_ndcg_whenUnweightedData_thenAccurateNDCG(
+					scorer,
+					"Group id 1",
+					new double[] {5., 3., 4., 2., 4., 1., 4.},
+					new double[] {0., 0., 0., 1.5, 0.5, 0., 1.},
+					0.5203322959222417
+					);
+			test_calculate_ndcg_whenUnweightedData_thenAccurateNDCG(
+					scorer,
+					"Group id 2",
+					new double[] {5., 3., 4., 2., 5., 1., 2.},
+					new double[] {0., 0., 1.2, 1.1, 0., 0., 0.},
+					0.5317565362380837
+					);
+			test_calculate_ndcg_whenUnweightedData_thenAccurateNDCG(
+					scorer,
+					"Group id 3",
+					new double[] {4., 4., 4., 2., 4., 1., 4.},
+					new double[] {0., 0., 0., 1., 1., 0., 1.},
+					0.7206201105813624
+					);
+			test_calculate_ndcg_whenUnweightedData_thenAccurateNDCG(
+					scorer,
+					"Group id 4",
+					new double[] {4., 4., 4., 4., 4.},
+					new double[] {0., 0., 0., 1., 1.},
+					0.7231357726898465
+					);
+			test_calculate_ndcg_whenUnweightedData_thenAccurateNDCG(
+					scorer,
+					"Group id 5",
+					new double[] {10., 9., 8., 7., 6., 5., 4., 3., 2., 1., 1., 1., 1.},
+					new double[] {0., 0., 0., 0., 0., 0., 0., 0., 0., 0., 1., 0., 1.},
+					0.08861964339202387
+					);
+			test_calculate_ndcg_whenUnweightedData_thenAccurateNDCG(
+					scorer,
+					"Group id 6",
+					new double[] {5., 3., 4., 2., 4., 1, 4},
+					new double[] {0, 0, 0, 1.5, 0.5, 0, 1},
+					0.5203322959222417
+					);
+			// Testing target greater than 10
+			test_calculate_ndcg_whenUnweightedData_thenAccurateNDCG(
+					scorer,
+					"Group id 7",
+					new double[] {4., 5., 8., 9., 8., 8.},
+					new double[] {3., 6., 10., 0., 0., 2.},
+					0.5254456210544878
+					);
+			// Testing scientific notation
+			test_calculate_ndcg_whenUnweightedData_thenAccurateNDCG(
+					scorer,
+					"Group id 8",
+					new double[] {5., 0.5, 3.},
+					new double[] {6e-1, 8e-2, 1},
+					0.8679843907541499
+					);
+		}
 	}
 	
 }

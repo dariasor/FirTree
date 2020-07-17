@@ -48,5 +48,4 @@ public class Instance extends mltk.core.Instance {
 	public void setGroupId(String groupId) {
 		this.groupId = groupId;
 	}
-	
 }

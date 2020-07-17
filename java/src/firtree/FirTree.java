@@ -2,6 +2,7 @@ package firtree;
 
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.util.ArrayList;
@@ -19,15 +20,16 @@ public class FirTree {
 
 	private enum NodeType { SPLIT, MODEL, CONST }
 
+	private String dir;
 	private AttrInfo ainfo;
+	private int polyDegree; //degree of polynomials in the leaf models. 0 means that the leaf models are not yet trained.
+	private String modelPrefix;
 
 	private ArrayList<String> node_name;
 	private ArrayList<NodeType> node_type;
 	private ArrayList<Integer> split_attr_id;
 	private ArrayList<Double> split_val;
 	private int nodeN;
-
-	private int poly_degree; //degree of polynomials in the leaf models. 0 means that the leaf models are not yet trained.
 	
 	// XW. Outer: Number of all nodes of the three NodeType
 	// XW. Inner: Number of attributes used by a node
@@ -52,6 +54,138 @@ public class FirTree {
 	// XW
 	private int INTERCEPT = -1;
 	
+	public FirTree(AttrInfo ainfo, String dir, int polyDegree, String modelPrefix) 
+			throws Exception {
+		this.dir = dir;
+		this.ainfo = ainfo;
+		this.polyDegree = polyDegree;
+		this.modelPrefix = modelPrefix;
+		
+		node_name = new ArrayList<String>();
+		node_type = new ArrayList<NodeType>();
+		split_attr_id = new ArrayList<Integer>();
+		split_val = new ArrayList<Double>();
+
+		// Parse the treelog.txt file in the directory to a FirTree model
+		BufferedReader treelog = new BufferedReader(new FileReader(dir + "/treelog.txt"), 65535);
+		String line_tree = treelog.readLine();
+		while(line_tree != null) {
+			if(line_tree.matches("Root(.*)")) {
+				node_name.add(line_tree.trim());
+			}
+			if(line_tree.matches("Constant leaf(.*)")) {
+				node_type.add(NodeType.CONST);
+				split_attr_id.add(-1);
+				split_val.add(Double.POSITIVE_INFINITY);
+			}
+			if(line_tree.matches("Regression leaf(.*)")) {
+				node_type.add(NodeType.MODEL);
+				split_attr_id.add(-1);
+				split_val.add(Double.POSITIVE_INFINITY);
+			}
+			if(line_tree.matches("Best feature:(.*)")) {
+				node_type.add(NodeType.SPLIT);
+				String current_attr = line_tree.split(" ")[2];
+				split_attr_id.add(ainfo.nameToId.get(current_attr));
+				line_tree = treelog.readLine();
+				split_val.add(Double.parseDouble(line_tree.split(" ")[2]));
+			}
+			line_tree = treelog.readLine();
+		}
+		treelog.close();
+		nodeN = node_name.size();
+		
+		// XW. Build map from names to indexes of node_name
+		nodeIndexes = new HashMap<>();
+		for (int nodeNo = 0; nodeNo < node_name.size(); nodeNo ++) {
+			nodeIndexes.put(node_name.get(nodeNo), nodeNo);
+		}
+		
+		// XW. Check whether all parameter files exist
+		boolean allExist = true;
+		List<String> allLeaves = getAllLeaves();
+		for (String leafName : allLeaves) {
+			String paramPath = getParamPath(leafName);
+			File paramFile = new File(paramPath);
+			if (! paramFile.exists()) {
+				allExist = false;
+				break;
+			}
+		}
+		
+		// XW. If all parameter files exist, load all of the parameters
+		// XW. Parameters include intercept, coefficients, and constants on leaves
+		if (allExist) {
+			// Load linear models and constants on FirTree leaves
+			const_val = new double[nodeN];
+			intercept_val = new double[nodeN];
+			lr_attr_ids = new ArrayList<ArrayList<Integer>>(nodeN);
+			lr_coefs = new ArrayList<ArrayList<ArrayList<Double>>>(nodeN);
+	
+			for(int nodeNo = 0; nodeNo < node_name.size(); nodeNo++){
+	
+				ArrayList<Integer> hold_lr_attr_ids = new ArrayList<Integer>();
+				ArrayList<ArrayList<Double>> hold_lr_attr_coefs = new ArrayList<ArrayList<Double>>();
+	
+				if(node_type.get(nodeNo) == NodeType.MODEL) {
+					// there is a model on the leaf
+					String paramPath = getParamPath(nodeNo);
+					BufferedReader lr_text = new BufferedReader(new FileReader(paramPath));
+					String line = lr_text.readLine();
+					intercept_val[nodeNo] = Double.parseDouble(line.split("\t")[1]);
+					line = lr_text.readLine();
+					while(line != null) {
+						String[] lr_data_string = line.split("\t");
+						Integer attr_id = ainfo.nameToId.get(lr_data_string[0]);
+						if(attr_id == null)
+						{
+							System.out.println("Error: not a valid attribute name " + lr_data_string[0] + " in " + paramPath);
+							System.exit(1);
+						}
+						hold_lr_attr_ids.add(attr_id);
+	
+						ArrayList<Double> tempnode_tempattr_model_coef = new ArrayList<Double>();
+						for(int i = 0; i < polyDegree + 2; i++){
+							// the last two items are (min and max) range of the attribute
+							// the previous items are coefficients of the corresponding polynomial terms of the attribute
+							try {
+								tempnode_tempattr_model_coef.add(Double.parseDouble(lr_data_string[i + 1]));
+							} catch(Exception e) {
+								System.out.println("Error: can't parse " + lr_data_string[i + 1] + " in " + paramPath);
+								System.exit(1);
+							}
+						}
+						hold_lr_attr_coefs.add(tempnode_tempattr_model_coef);
+						line = lr_text.readLine();
+					}
+					lr_attr_ids.add(hold_lr_attr_ids);
+					lr_coefs.add(hold_lr_attr_coefs);
+					lr_text.close();
+				} else {
+					// there is no model on the node
+					lr_attr_ids.add(hold_lr_attr_ids);
+					lr_coefs.add(hold_lr_attr_coefs);
+					if(node_type.get(nodeNo) == NodeType.CONST) {
+						// there is a const on the node
+						String paramPath = getParamPath(nodeNo);
+						BufferedReader constRead = new BufferedReader(new FileReader(paramPath));
+						String line = constRead.readLine();
+						const_val[nodeNo] = Double.parseDouble(line.split(": ")[1]);
+						constRead.close();
+					}
+				}
+			}
+		}
+	}
+	
+	/**
+	 * @author Xiaojie Wang
+	 * 
+	 * This constructor function is deprecated for two reasons:
+	 * (1) The use of polyDegree is ambiguous: it is used to indicate loading parameter files or not
+	 * (2) It does not allow adding a prefix to the name of parameter files
+	 */
+	@Deprecated
 	public FirTree(AttrInfo ainfo_in, String dir, int poly_degree_in) throws Exception {
 
 		// Load treeforPred
@@ -59,7 +193,7 @@ public class FirTree {
 		node_type = new ArrayList<NodeType>();
 		split_attr_id = new ArrayList<Integer>();
 		split_val = new ArrayList<Double>();
-		poly_degree = poly_degree_in;
+		polyDegree = poly_degree_in;
 		ainfo = ainfo_in;
 
 		BufferedReader treelog = new BufferedReader(new FileReader(dir + "/treelog.txt"), 65535);
@@ -97,7 +231,7 @@ public class FirTree {
 			nodeIndexes.put(node_name.get(nodeNo), nodeNo);
 		}
 		
-		if(poly_degree > 0) {
+		if(polyDegree > 0) {
 			// Load models and constants on FirTree leaves
 			const_val = new double[nodeN];
 			intercept_val = new double[nodeN];
@@ -111,7 +245,7 @@ public class FirTree {
 	
 				if(node_type.get(nodeNo) == NodeType.MODEL) {
 					// there is a model on the leaf
-					String lr_file_name = dir + "/Node_" + node_name.get(nodeNo) + "/model_polydegree_" + poly_degree + ".txt";
+					String lr_file_name = dir + "/Node_" + node_name.get(nodeNo) + "/model_polydegree_" + polyDegree + ".txt";
 					BufferedReader lr_text = new BufferedReader(new FileReader(lr_file_name));
 					String line = lr_text.readLine();
 					intercept_val[nodeNo] = Double.parseDouble(line.split("\t")[1]);
@@ -127,7 +261,7 @@ public class FirTree {
 						hold_lr_attr_ids.add(attr_id);
 	
 						ArrayList<Double> tempnode_tempattr_model_coef = new ArrayList<Double>();
-						for(int i = 0; i < poly_degree + 2; i++){
+						for(int i = 0; i < polyDegree + 2; i++){
 							// the last two items are (min and max) range of the attribute
 							// the previous items are coefficients of the corresponding polynomial terms of the attribute
 							try {
@@ -218,15 +352,15 @@ public class FirTree {
 					ArrayList<ArrayList<Double>> current_lr_coefs = lr_coefs.get(current_index);
 					for(int i_attr = 0; i_attr < current_lr_attr_ids.size(); i_attr++){
 						double current_x = Double.parseDouble(data[ainfo.idToCol(current_lr_attr_ids.get(i_attr))]);
-						double current_feature_min = current_lr_coefs.get(i_attr).get(poly_degree);
-						double current_feature_max = current_lr_coefs.get(i_attr).get(poly_degree + 1);
+						double current_feature_min = current_lr_coefs.get(i_attr).get(polyDegree);
+						double current_feature_max = current_lr_coefs.get(i_attr).get(polyDegree + 1);
 						if(current_x < current_feature_min){
 							current_x = current_feature_min;
 						}
 						if(current_x > current_feature_max){
 							current_x = current_feature_max;
 						}
-						for(int i = 0; i < poly_degree; i++){
+						for(int i = 0; i < polyDegree; i++){
 							val += current_lr_coefs.get(i_attr).get(i)*Math.pow(current_x, i + 1); // each attribute
 						}
 					}
@@ -276,8 +410,8 @@ public class FirTree {
 
 						for(int lr_attr_index = 0; lr_attr_index < lr_attr_ids.get(current_node_index).size(); lr_attr_index++) {
 						    String current_lr_attr = ainfo.idToName(lr_attr_ids.get(current_node_index).get(lr_attr_index));
-							double current_min = current_lr_coefs.get(lr_attr_index).get(poly_degree);
-							double current_max = current_lr_coefs.get(lr_attr_index).get(poly_degree + 1);
+							double current_min = current_lr_coefs.get(lr_attr_index).get(polyDegree);
+							double current_max = current_lr_coefs.get(lr_attr_index).get(polyDegree + 1);
 							//double x1_cap = (x1 < min1) ? min1 : (x1 > max1) ? max1 : x1;
 							cpp_out.write(
 								tabs + "    double " + current_lr_attr + "_cap =\n" + tabs + "        (" + current_lr_attr +	" < " +
@@ -291,11 +425,11 @@ public class FirTree {
 						    String current_lr_attr_cap = ainfo.idToName(lr_attr_ids.get(current_node_index).get(lr_attr_index)) + "_cap";
 							// + x1_cap *
 							cpp_out.write("\n" + tabs + "        + " + current_lr_attr_cap + " *\n" + tabs + "        ");
-							for(int degree_index = 0; degree_index < poly_degree - 1; degree_index++)
+							for(int degree_index = 0; degree_index < polyDegree - 1; degree_index++)
 								//(b11 + x1_cap * (b12 + x1_cap * ...
 								cpp_out.write("(" + current_lr_coefs.get(lr_attr_index).get(degree_index) + " + " + current_lr_attr_cap + " *\n" + tabs + "        ");
 							//b13)))
-							cpp_out.write(current_lr_coefs.get(lr_attr_index).get(poly_degree - 1) + String.join("", Collections.nCopies(poly_degree - 1, ")")));
+							cpp_out.write(current_lr_coefs.get(lr_attr_index).get(polyDegree - 1) + String.join("", Collections.nCopies(polyDegree - 1, ")")));
 						}
 						cpp_out.write(";\n");
 					}
@@ -354,8 +488,8 @@ public class FirTree {
 
 						for(int lr_attr_index = 0; lr_attr_index < lr_attr_ids.get(current_node_index).size(); lr_attr_index++) {
 						    String current_lr_attr = ainfo.idToName(lr_attr_ids.get(current_node_index).get(lr_attr_index)).replace("_","");
-							double current_min = current_lr_coefs.get(lr_attr_index).get(poly_degree);
-							double current_max = current_lr_coefs.get(lr_attr_index).get(poly_degree + 1);
+							double current_min = current_lr_coefs.get(lr_attr_index).get(polyDegree);
+							double current_max = current_lr_coefs.get(lr_attr_index).get(polyDegree + 1);
 							//double xcap = Math.max(0.0, Math.min(x, 5760.0));
 							java_out.write(tabs + "    double " + current_lr_attr + "cap = Math.max(" + current_min + ", Math.min(" + current_lr_attr + ", " + current_max + "));\n");
 						}
@@ -365,11 +499,11 @@ public class FirTree {
 						    String current_lr_attr_cap = ainfo.idToName(lr_attr_ids.get(current_node_index).get(lr_attr_index)).replace("_","") + "cap";
 							// + x1_cap *
 						    java_out.write("\n" + tabs + "        + " + current_lr_attr_cap + " *\n" + tabs + "        ");
-							for(int degree_index = 0; degree_index < poly_degree - 1; degree_index++)
+							for(int degree_index = 0; degree_index < polyDegree - 1; degree_index++)
 								//(b11 + x1_cap * (b12 + x1_cap * ...
 								java_out.write("(" + current_lr_coefs.get(lr_attr_index).get(degree_index) + " + " + current_lr_attr_cap + " *\n" + tabs + "        ");
 							//b13)))
-							java_out.write(current_lr_coefs.get(lr_attr_index).get(poly_degree - 1) + String.join("", Collections.nCopies(poly_degree - 1, ")")));
+							java_out.write(current_lr_coefs.get(lr_attr_index).get(polyDegree - 1) + String.join("", Collections.nCopies(polyDegree - 1, ")")));
 						}
 						java_out.write(";\n");
 					}
@@ -391,10 +525,10 @@ public class FirTree {
 
 	// XW. Return a list of names of all leaves, either MODEL or CONST
 	public List<String> getAllLeaves() {
-		List<String> leafNames = new ArrayList<>();
-		leafNames.addAll(getRegressionLeaves());
-		leafNames.addAll(getConstLeaves());
-		return leafNames;
+		List<String> allLeaves = new ArrayList<>();
+		allLeaves.addAll(getRegressionLeaves());
+		allLeaves.addAll(getConstLeaves());
+		return allLeaves;
 	}
 	
 	// XW. This is used to speed up training by incrementally computing predictions
@@ -437,8 +571,8 @@ public class FirTree {
 			
 				// This code snippet is copied from predict(Instance)
 				double x = data[leafAttrIds.get(i)];
-				double xMin = leafCoefs.get(i).get(poly_degree);
-				double xMax = leafCoefs.get(i).get(poly_degree + 1);
+				double xMin = leafCoefs.get(i).get(polyDegree);
+				double xMax = leafCoefs.get(i).get(polyDegree + 1);
 				if (x < xMin)
 					x = xMin;
 				if (x > xMax)
@@ -456,13 +590,13 @@ public class FirTree {
 			ArrayList<ArrayList<Double>> leafCoefs = lr_coefs.get(currentIndex);
 			for (int i = 0; i < leafAttrIds.size(); i ++) {
 				double x = data[leafAttrIds.get(i)];
-				double xMin = leafCoefs.get(i).get(poly_degree);
-				double xMax = leafCoefs.get(i).get(poly_degree + 1);
+				double xMin = leafCoefs.get(i).get(polyDegree);
+				double xMax = leafCoefs.get(i).get(polyDegree + 1);
 				if (x < xMin)
 					x = xMin;
 				if (x > xMax)
 					x = xMax;
-				for (int j = 0; j < poly_degree; j ++) {
+				for (int j = 0; j < polyDegree; j ++) {
 					// (j + 1)-th power of the i-th attribute
 					prediction += leafCoefs.get(i).get(j) * Math.pow(x, j + 1);
 				}
@@ -514,13 +648,13 @@ public class FirTree {
 			ArrayList<ArrayList<Double>> leafCoefs = lr_coefs.get(currentIndex);
 			for (int i = 0; i < leafAttrIds.size(); i ++) {
 				double x = data[leafAttrIds.get(i)];
-				double xMin = leafCoefs.get(i).get(poly_degree);
-				double xMax = leafCoefs.get(i).get(poly_degree + 1);
+				double xMin = leafCoefs.get(i).get(polyDegree);
+				double xMax = leafCoefs.get(i).get(polyDegree + 1);
 				if (x < xMin)
 					x = xMin;
 				if (x > xMax)
 					x = xMax;
-				for (int j = 0; j < poly_degree; j ++) {
+				for (int j = 0; j < polyDegree; j ++) {
 					// (j + 1)-th power of the i-th attribute
 					prediction += leafCoefs.get(i).get(j) * Math.pow(x, j + 1);
 				}
@@ -585,7 +719,7 @@ public class FirTree {
 			idPairs.add(new IntPair(activeNode, INTERCEPT));
 			
 			// Index of coefficients starts from 0
-			int nCoef = lr_attr_ids.get(activeNode).size() * poly_degree;
+			int nCoef = lr_attr_ids.get(activeNode).size() * polyDegree;
 			for (int activeParam = 0; activeParam < nCoef; activeParam ++) {
 				idPairs.add(new IntPair(activeNode, activeParam));
 			}
@@ -639,14 +773,13 @@ public class FirTree {
 	}
 	
 	// XW
-	public void save(String dir) throws Exception {
+	public void save() throws Exception {
 		List<String> modelLeaves = getRegressionLeaves();
-		for (String modelLeaf : modelLeaves) {
-			String leafDir = dir + "/Node_" + modelLeaf;
-			String leafFile = leafDir + "/model_polydegree_" + poly_degree + ".txt";
-			BufferedWriter bw = new BufferedWriter(new FileWriter(leafFile));
+		for (String leafName : modelLeaves) {
+			int nodeIndex = nodeIndexes.get(leafName);
+			String paramPath = getParamPath(nodeIndex);
+			BufferedWriter bw = new BufferedWriter(new FileWriter(paramPath));
 
-			int nodeIndex = nodeIndexes.get(modelLeaf);
 			ArrayList<Integer> leafAttrIds = lr_attr_ids.get(nodeIndex);
 			ArrayList<ArrayList<Double>> leafCoefs = lr_coefs.get(nodeIndex);
 
@@ -654,15 +787,33 @@ public class FirTree {
 			for (int i = 0; i < leafAttrIds.size(); i ++) {
 				int attrId = leafAttrIds.get(i);
 				bw.write(ainfo.idToName(attrId) + "\t");
-				for (int j = 0; j < poly_degree; j ++) {
+				for (int j = 0; j < polyDegree; j ++) {
 					bw.write(leafCoefs.get(i).get(j) + "\t" );
 				}
-				bw.write(leafCoefs.get(i).get(poly_degree) + "\t"); // Min
-				bw.write(leafCoefs.get(i).get(poly_degree + 1) + "\n"); // Max
+				bw.write(leafCoefs.get(i).get(polyDegree) + "\t"); // Min
+				bw.write(leafCoefs.get(i).get(polyDegree + 1) + "\n"); // Max
 			}
 			bw.flush();
 			bw.close();
 		}
+	}
+	
+	public String getParamPath(String nodeName) {
+		int nodeIndex = nodeIndexes.get(nodeName);
+		return getParamPath(nodeIndex);
+	}
+	
+	private String getParamPath(int nodeIndex) {
+		String paramPath = dir + "/Node_" + node_name.get(nodeIndex) + "/" + modelPrefix;
+		if (node_type.get(nodeIndex) == NodeType.MODEL) {
+			paramPath += "_polydegree_" + polyDegree + ".txt";
+		} else if (node_type.get(nodeIndex) == NodeType.CONST) {
+			paramPath += "_const.txt";
+		} else {
+			System.err.printf("Cannot save parameters of %s\n", node_name.get(nodeIndex));
+			System.exit(1);
+		}
+		return paramPath;
 	}
 }
 

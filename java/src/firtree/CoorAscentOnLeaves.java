@@ -39,11 +39,14 @@ public class CoorAscentOnLeaves {
 		String attPath = "";
 
 		@Argument(name = "-y", description = "polynomial degree")
-		int poly_degree = 2;
+		int polyDegree = 2;
 		
 		// This argument comes from InteractionTreeLearnerGAMMC but is required
 		@Argument(name = "-g", description = "name of the attribute with the group id", required = true)
 		String group = "";
+		
+		@Argument(name = "-m", description = "Prefix of name of output parameter files (default: model)")
+		String modelPrefix = "model";
 	}
 	
 	public static void main(String[] args) throws Exception {
@@ -59,13 +62,13 @@ public class CoorAscentOnLeaves {
 		long start = System.currentTimeMillis();
 
 		// XW. OLS is better than uniform in initializing parameters of CA
-		RegressionOnLeaves.main(args);
+		//RegressionOnLeaves.main(args);
 		
 		// Load attribute file
 		AttrInfo ainfo = AttributesReader.read(opts.attPath);
 		
 		// Load tree structure and initial parameter values
-		FirTree model = new FirTree(ainfo, opts.dir, opts.poly_degree);
+		FirTree model = new FirTree(ainfo, opts.dir, opts.polyDegree, opts.modelPrefix);
 		
 		// Load training data
 		Map<String, RankList> rankLists = loadRankList(opts, ainfo, model);
@@ -76,7 +79,7 @@ public class CoorAscentOnLeaves {
 		fineTune(opts, model, rankLists, scorer);
 		
 		// Save final parameter values of leaf nodes of type MODEL
-		model.save(opts.dir);
+		model.save();
 		
 		long end = System.currentTimeMillis();
 		System.out.println("Finished all in " + (end - start) / 1000.0 + " (s).");
@@ -324,6 +327,7 @@ public class CoorAscentOnLeaves {
 				Instance instance = new Instance(
 						InstancesReader.parseDenseInstance(data, ainfo, false)
 						);
+				System.out.println(instance.getValues().length); System.exit(1);
 				String groupId = data[ainfo.nameToCol.get(opts.group)];
 				instance.setGroupId(groupId);
 				

@@ -24,7 +24,10 @@ public class RegressionOnLeaves {
 		String attPath = "";
 
 		@Argument(name = "-y", description = "polynomial degree")
-		int poly_degree = 2;
+		int polyDegree = 2;
+		
+		@Argument(name = "-m", description = "Prefix of name of output parameter files (default: model)")
+		String modelPrefix = "model";
 	}
 
 
@@ -43,8 +46,8 @@ public class RegressionOnLeaves {
 		//Load attrFile and tree structure.
 		
 		timeStamp("Load attrFile");
-		AttrInfo ainfo_core = AttributesReader.read(opts.attPath);
-		FirTree model = new FirTree(ainfo_core, opts.dir, 0);
+		AttrInfo ainfo = AttributesReader.read(opts.attPath);
+		FirTree model = new FirTree(ainfo, opts.dir, opts.polyDegree, opts.modelPrefix);
 		ArrayList<String> leavesModel = model.getRegressionLeaves();
 		ArrayList<String> leavesConst = model.getConstLeaves();
 		
@@ -52,9 +55,10 @@ public class RegressionOnLeaves {
 		timeStamp("-------------- Train model on each regression leaf --------------");
 
 		for(int i_leaf = 0; i_leaf < leavesModel.size(); i_leaf++){
-
-			String dataNodePath = opts.dir + "/Node_" + leavesModel.get(i_leaf);
-			System.out.println("------------Processing leaf "+ leavesModel.get(i_leaf) + "------------");
+			String leafName = leavesModel.get(i_leaf);
+			
+			String dataNodePath = opts.dir + "/Node_" + leafName;
+			System.out.println("------------Processing leaf "+ leafName + "------------");
 
 			long start_load = System.currentTimeMillis();
 			timeStamp("Scan data");
@@ -70,7 +74,7 @@ public class RegressionOnLeaves {
 
 			for(String line = br_dta.readLine(); line != null; line = br_dta.readLine()) {
 				String[] data = line.split("\t+");
-				y_double_arraylist.add(Double.parseDouble(data[ainfo_core.getClsCol()]));
+				y_double_arraylist.add(Double.parseDouble(data[ainfo.getClsCol()]));
 				ArrayList<Double> current_selected_attr = new ArrayList<Double>();
 				for(int j = 0; j < col_num; j++){
 					current_selected_attr.add(Double.parseDouble(data[ainfo_leaf.attributes.get(j).getColumn()]));
@@ -97,11 +101,11 @@ public class RegressionOnLeaves {
 
 			// Train OLS with polynomial terms
 			timeStamp("Training OLS with transformed features");
-			double[][] xMat_trans = new double[xMat.length][xMat[0].length * opts.poly_degree];
+			double[][] xMat_trans = new double[xMat.length][xMat[0].length * opts.polyDegree];
 			for(int i = 0; i < xMat.length; i++){
 				for(int j = 0; j < xMat[0].length; j++){
-					for(int i_trans = 0; i_trans < opts.poly_degree; i_trans++){
-						xMat_trans[i][j * opts.poly_degree + i_trans] = Math.pow(xMat[i][j], i_trans + 1);
+					for(int i_trans = 0; i_trans < opts.polyDegree; i_trans++){
+						xMat_trans[i][j * opts.polyDegree + i_trans] = Math.pow(xMat[i][j], i_trans + 1);
 					}
 				}
 			}
@@ -133,14 +137,15 @@ public class RegressionOnLeaves {
 
 			timeStamp("Save the model");
 
-			BufferedWriter modelTrans_out = new BufferedWriter(new FileWriter(dataNodePath + "/model_polydegree_" + opts.poly_degree + ".txt"));
+			String paramPath = model.getParamPath(leafName);
+			BufferedWriter modelTrans_out = new BufferedWriter(new FileWriter(paramPath));
 
 			modelTrans_out.write("intercept\t" + ols_trans_intercept + "\n");
 
 			for (int i_attr = 0; i_attr < col_num; i_attr++) {
 				modelTrans_out.write(ainfo_leaf.idToName(i_attr) + "\t");
-				for(int i_poly = 0; i_poly < opts.poly_degree; i_poly++){
-					modelTrans_out.write(ols_trans_coef[i_attr * opts.poly_degree + i_poly] + "\t" );
+				for(int i_poly = 0; i_poly < opts.polyDegree; i_poly++){
+					modelTrans_out.write(ols_trans_coef[i_attr * opts.polyDegree + i_poly] + "\t" );
 				}
 				modelTrans_out.write(attr_range.get(i_attr).get(0) + "\t" + attr_range.get(i_attr).get(1) + "\n");
 			}
@@ -158,9 +163,10 @@ public class RegressionOnLeaves {
 		timeStamp("-------------- Get constant for each leafConst ---------------");
 
 		for(int i_const = 0; i_const < leavesConst.size(); i_const++){
+			String leafName = leavesConst.get(i_const);
 
-			String dataNodePath = opts.dir + "/Node_" + leavesConst.get(i_const);
-			System.out.println("------------Processing leaf " + leavesConst.get(i_const) + "------------");
+			String dataNodePath = opts.dir + "/Node_" + leafName;
+			System.out.println("------------Processing leaf " + leafName + "------------");
 
 			// read dta file, only need to read the target column
 
@@ -171,7 +177,7 @@ public class RegressionOnLeaves {
 			double y_sum = 0;
 			for(String line = br_dta.readLine(); line != null; line = br_dta.readLine()){
 				String[] data = line.split("\t+");
-				double y_current = Double.parseDouble(data[ainfo_core.getClsCol()]);
+				double y_current = Double.parseDouble(data[ainfo.getClsCol()]);
 				y_double_arraylist.add(y_current);
 				y_sum += y_current;
 			}
@@ -182,7 +188,8 @@ public class RegressionOnLeaves {
 
 			timeStamp("Saving the const");
 
-			BufferedWriter const_out = new BufferedWriter(new FileWriter(dataNodePath + "/model_const.txt"));
+			String paramPath = model.getParamPath(leafName);
+			BufferedWriter const_out = new BufferedWriter(new FileWriter(paramPath));
 			const_out.write("Const: " + y_mean);
 			const_out.flush();
 			const_out.close();
