@@ -538,8 +538,10 @@ public class FirTree {
 			int activeParam,
 			double paramDelta
 			) {
-		if (! instance.isIndexed())
-			instance.setNodeIndex(indexLeaf(instance));
+		if (! instance.isIndexed()) {
+			System.err.println("Please call indexLeaf(Instance, String[]) when loading rank lists");
+			System.exit(1);
+		}
 		double[] data = instance.getValues();
 		
 		double prediction = instance.getPrediction();
@@ -570,7 +572,8 @@ public class FirTree {
 				ArrayList<ArrayList<Double>> leafCoefs = lr_coefs.get(currentIndex);
 			
 				// This code snippet is copied from predict(Instance)
-				double x = data[leafAttrIds.get(i)];
+				String attName = ainfo.idToName(leafAttrIds.get(i));
+				double x = data[instance.getAttId(attName)];
 				double xMin = leafCoefs.get(i).get(polyDegree);
 				double xMax = leafCoefs.get(i).get(polyDegree + 1);
 				if (x < xMin)
@@ -589,7 +592,8 @@ public class FirTree {
 			ArrayList<Integer> leafAttrIds = lr_attr_ids.get(currentIndex);
 			ArrayList<ArrayList<Double>> leafCoefs = lr_coefs.get(currentIndex);
 			for (int i = 0; i < leafAttrIds.size(); i ++) {
-				double x = data[leafAttrIds.get(i)];
+				String attName = ainfo.idToName(leafAttrIds.get(i));
+				double x = data[instance.getAttId(attName)];
 				double xMin = leafCoefs.get(i).get(polyDegree);
 				double xMax = leafCoefs.get(i).get(polyDegree + 1);
 				if (x < xMin)
@@ -631,8 +635,10 @@ public class FirTree {
 	
 	// XW. Largely equivalent to predict(String) but cache predictions in instances
 	public double predict(Instance instance) {
-		if (! instance.isIndexed())
-			instance.setNodeIndex(indexLeaf(instance));
+		if (! instance.isIndexed()) {
+			System.err.println("Please call indexLeaf(Instance, String[]) when loading rank lists");
+			System.exit(1);
+		}
 		double[] data = instance.getValues();
 		
 		int currentIndex = instance.getNodeIndex();
@@ -647,7 +653,8 @@ public class FirTree {
 			ArrayList<Integer> leafAttrIds = lr_attr_ids.get(currentIndex);
 			ArrayList<ArrayList<Double>> leafCoefs = lr_coefs.get(currentIndex);
 			for (int i = 0; i < leafAttrIds.size(); i ++) {
-				double x = data[leafAttrIds.get(i)];
+				String attName = ainfo.idToName(leafAttrIds.get(i));
+				double x = data[instance.getAttId(attName)];
 				double xMin = leafCoefs.get(i).get(polyDegree);
 				double xMax = leafCoefs.get(i).get(polyDegree + 1);
 				if (x < xMin)
@@ -667,10 +674,9 @@ public class FirTree {
 	}
 	
 	// XW. Decide which leaf node an instance falls in
-	public int indexLeaf(Instance instance) {
-		double[] data = instance.getValues();
-		if (data.length != ainfo.attributes.size()) {
-			System.err.println("Elements of Instance.vector map one-to-one with those of AttrInfo.attributes");
+	public int indexLeaf(Instance instance, String[] data) {
+		if (data.length != ainfo.getColN()) {
+			System.err.println("FirTree.indexLeaf: The number of columns in the data does not match the number of attributes in the file");
 			System.exit(1);
 		}
 		
@@ -683,8 +689,8 @@ public class FirTree {
 
 			if(currentType == NodeType.SPLIT) {
 				// Find which of the current node's children (L or R) the instance falls in
-				int attrId = split_attr_id.get(currentIndex);
-				double currentVal = data[attrId];
+				int currentCol = ainfo.idToCol(split_attr_id.get(currentIndex));
+				double currentVal = Double.parseDouble(data[currentCol]);
 				double currentSplit = split_val.get(currentIndex);
 				if(currentVal <= currentSplit) {
 					nextNode = currentNode + "_L";

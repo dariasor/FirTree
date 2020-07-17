@@ -96,7 +96,10 @@ public class NDCGScorer extends DCGScorer {
 		
 		RankList rankList = new RankList(groupId);
 		for (int i = 0; i < predictions.length; i ++) {
-			Instance instance = new Instance(new mltk.core.Instance(new double[0], targets[i]));
+			Instance instance = new Instance(
+					new mltk.core.Instance(new double[0], targets[i]),
+					null
+					);
 			instance.setPrediction(predictions[i]);
 			rankList.add(instance);
 		}

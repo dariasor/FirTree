@@ -14,7 +14,6 @@ import firtree.metric.MetricScorer;
 import firtree.metric.MetricScorerFactory;
 import firtree.utilities.FileUtils;
 import firtree.utilities.Instance;
-import firtree.utilities.MergeSorter;
 import firtree.utilities.RankList;
 import mltk.cmdline.Argument;
 import mltk.cmdline.CmdLineParser;
@@ -62,7 +61,7 @@ public class CoorAscentOnLeaves {
 		long start = System.currentTimeMillis();
 
 		// XW. OLS is better than uniform in initializing parameters of CA
-		//RegressionOnLeaves.main(args);
+		RegressionOnLeaves.main(args);
 		
 		// Load attribute file
 		AttrInfo ainfo = AttributesReader.read(opts.attPath);
@@ -260,7 +259,7 @@ public class CoorAscentOnLeaves {
 					model.predict(instance);
 					*/// Ablative Debug End
 				}
-				double score = scorer.score(rerank(rankList));
+				double score = scorer.score(rankList);
 				rankList.setScore(score); // Easily forgot
 			}
 			total += rankList.getScore();
@@ -279,7 +278,8 @@ public class CoorAscentOnLeaves {
 		for (RankList rankList : rankLists.values()) {
 			for (Instance instance : rankList.getInstances())
 				model.predict(instance);
-			double score = scorer.score(rerank(rankList));
+			
+			double score = scorer.score(rankList);
 			rankList.setScore(score); // Easily forgot
 			total += rankList.getScore();
 			size += rankList.getWeight();
@@ -302,15 +302,6 @@ public class CoorAscentOnLeaves {
 		}
 		return absDelta * sign;
 	}
-	
-	protected static RankList rerank(RankList unordered) {
-		double[] predictions = new double[unordered.size()];
-		for (int i = 0; i < unordered.size(); i ++) {
-			predictions[i] = unordered.get(i).getPrediction();
-		}
-		int[] idx = MergeSorter.sort(predictions, false);
-		return new RankList(unordered, idx);
-	}
 
 	protected static Map<String, RankList> loadRankList(
 			Options opts,
@@ -321,18 +312,20 @@ public class CoorAscentOnLeaves {
 		List<String> allLeaves = model.getAllLeaves();
 		for (String leafName : allLeaves) {
 			String dataPath = Paths.get(opts.dir, "Node_" + leafName, "fir.dta").toString();
+			String attPath = Paths.get(opts.dir, "Node_" + leafName, "fir.fs.fs.attr").toString();
+			AttrInfo ainfoLeaf = AttributesReader.read(attPath);
 			BufferedReader br = new BufferedReader(new FileReader(dataPath));
 			for (String line = br.readLine(); line != null; line = br.readLine()) {
 				String[] data = line.split("\t");
 				Instance instance = new Instance(
-						InstancesReader.parseDenseInstance(data, ainfo, false)
+						InstancesReader.parseDenseInstance(data, ainfoLeaf, false),
+						ainfoLeaf
 						);
-				System.out.println(instance.getValues().length); System.exit(1);
 				String groupId = data[ainfo.nameToCol.get(opts.group)];
 				instance.setGroupId(groupId);
 				
 				// Predict index of the node (must be a leaf) the instance falls in
-				int nodeIndex = model.indexLeaf(instance);
+				int nodeIndex = model.indexLeaf(instance, data);
 				String nodeName = model.getNodeName(nodeIndex);
 				if (! nodeName.equals(leafName)) {
 					System.err.printf("Not all instances in directory %s fall in node %s\n", leafName, nodeName);
@@ -346,7 +339,7 @@ public class CoorAscentOnLeaves {
 				}
 				rankLists.get(groupId).add(instance);
 				
-				if (Math.abs(model.predict(line) - model.predict(instance)) > 0.00000001) {
+				if (Math.abs(model.predict(line) - model.predict(instance)) > Math.pow(10, -10)) {
 					System.err.println("Diffferent versions of FirTree.predict are inconsistent");
 					System.exit(1);
 				}			

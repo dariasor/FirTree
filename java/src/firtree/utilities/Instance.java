@@ -1,5 +1,7 @@
 package firtree.utilities;
 
+import mltk.core.io.AttrInfo;
+
 /**
  * Extends {@link mltk.core.Instance} to be used in the coordinate ascent algorithm
  * 
@@ -7,6 +9,7 @@ package firtree.utilities;
  */
 public class Instance extends mltk.core.Instance {
 
+	AttrInfo ainfoLeaf;
 	// Cache the previous prediction for an instance to speed up training
 	protected double prediction;
 	// Instances with the same group id are collectively called a query group
@@ -14,8 +17,13 @@ public class Instance extends mltk.core.Instance {
 	// Index in the list of all nodes in a FirTree model, but must be a leaf node's index
 	protected int nodeIndex = -1;
 	
-	public Instance(mltk.core.Instance instance) {
+	public Instance(mltk.core.Instance instance, AttrInfo ainfoLeaf) {
 		super(instance);
+		this.ainfoLeaf = ainfoLeaf;
+	}
+	
+	public int getAttId(String attName) {
+		return ainfoLeaf.nameToId.get(attName);
 	}
 	
 	public boolean isIndexed() {
