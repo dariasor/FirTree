@@ -26,6 +26,10 @@ public class RegressionOnLeaves {
 		@Argument(name = "-y", description = "polynomial degree")
 		int polyDegree = 2;
 		
+		// The group id is used for subsampling
+		@Argument(name = "-g", description = "name of the attribute with the group id", required = true)
+		String group = "";
+		
 		@Argument(name = "-m", description = "Prefix of name of output parameter files (default: model)")
 		String modelPrefix = "model";
 	}
@@ -65,15 +69,25 @@ public class RegressionOnLeaves {
 
 			AttrInfo ainfo_leaf = AttributesReader.read(dataNodePath + "/fir.fs.fs.attr");
 
+			String dataPath = dataNodePath + "/fir.dta";
 			// read the data, save labels and values of selected features
-			BufferedReader br_dta = new BufferedReader(new FileReader(dataNodePath + "/fir.dta"));
+			BufferedReader br_dta = new BufferedReader(new FileReader(dataPath));
 
 			int col_num = ainfo_leaf.attributes.size(); //col refers to the columns in the matrix, not in the data file
+
+			Set<String> groupIdSet = subsample(ainfo_leaf, opts, dataPath);
+			
 			List<List<Double>> xMat_arraylist = new ArrayList<List<Double>>(); //dynamic memory for temp data storage - features
 			ArrayList<Double> y_double_arraylist = new ArrayList<Double>(); //dynamic memory for temp data storage - labels
 
 			for(String line = br_dta.readLine(); line != null; line = br_dta.readLine()) {
 				String[] data = line.split("\t+");
+
+				// Skip the group ids that are not subsampled, i.e., not included in the set
+				String groupId = data[ainfo_leaf.nameToCol.get(opts.group)];
+				if (! groupIdSet.contains(groupId))
+					continue;
+				
 				y_double_arraylist.add(Double.parseDouble(data[ainfo.getClsCol()]));
 				ArrayList<Double> current_selected_attr = new ArrayList<Double>();
 				for(int j = 0; j < col_num; j++){
@@ -197,6 +211,41 @@ public class RegressionOnLeaves {
 
 		long end = System.currentTimeMillis();
 		System.out.println("Finished all in " + (end - start) / 1000.0 + " (s).");
+	}
+	
+	static Set<String> subsample(AttrInfo ainfo, Options opts, String dataPath) 
+			throws Exception {
+		Set<String> groupIdSet = new HashSet<String>();
+		
+		/*// Crash that needs to look into org.netlib.lapack.Dgeqrf.dgeqrf(lapack.f)
+		int max = Integer.MAX_VALUE / (ainfo.attributes.size() * opts.polyDegree + 1);
+		*///
+		// Use this magic number instead of using max integer value 2147483647
+		int max = 2147000000 / (ainfo.attributes.size() * opts.polyDegree + 1);
+		
+		Map<String, Integer> groupSizes = new HashMap<String, Integer>();
+		BufferedReader br = new BufferedReader(new FileReader(dataPath));
+		for (String line = br.readLine(); line != null; line = br.readLine()) {
+			String[] data = line.split("\t");
+			String groupId = data[ainfo.nameToCol.get(opts.group)];
+			groupSizes.put(groupId, groupSizes.getOrDefault(groupId, 0) + 1);
+		}
+		br.close();
+		List<String> groupIdList = new ArrayList<String>(groupSizes.keySet());
+		Collections.shuffle(groupIdList);
+		int num = 0;
+		for (String groupId : groupIdList) {
+			if (num + groupSizes.get(groupId) > max)
+				break;
+			num += groupSizes.get(groupId);
+			groupIdSet.add(groupId);
+		}
+		timeStamp(String.format(
+				"Subsample a set of %d out of %d group ids", 
+				groupIdSet.size(), 
+				groupIdList.size()
+				));
+		return groupIdSet;
 	}
 
 	protected static void timeStamp(String msg){

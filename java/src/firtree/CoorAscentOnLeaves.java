@@ -84,6 +84,14 @@ public class CoorAscentOnLeaves {
 		System.out.println("Finished all in " + (end - start) / 1000.0 + " (s).");
 	}
 	
+	// The hyper-parameters of training model parameters by coordinate ascent
+	// delta = [ deltaUnit * deltaBase^0, ..., deltaUnit * deltaBase^deltaMaxPower ]
+	public static double deltaUnit = 0.001;
+	public static double deltaBase = 2.0;
+	public static double deltaMaxPower = 15; // A smaller value speeds up training
+	public static double minGainTrain = 0.0001; // A larger value speeds up training
+	public static double deltaRatio = 0.01;
+	
 	protected static void fineTune(
 			Options opts,
 			FirTree model, 
@@ -222,20 +230,12 @@ public class CoorAscentOnLeaves {
 			System.out.printf("\tIncrease training %s by %f (from %f to %f)\n", 
 					scorer.name(), gainTrain, startScoreTrain, scoreTrain);
 			nIter += 1;
-			if (gainTrain < minGainOnTrainingData) {
+			if (gainTrain < minGainTrain) {
 				break;
 			}
 //			break;
 		} // while (true)
 	}
-	
-	// The hyper-parameters of a firtree, which are not changed during training
-	// delta = [ deltaUnit * deltaBase^0, ..., deltaUnit * deltaBase^deltaMaxPower ]
-	public static double deltaUnit = 0.001;
-	public static double deltaBase = 2.0;
-	public static double deltaMaxPower = 10; //15;
-	public static double minGainOnTrainingData = 0.00005;
-	public static double deltaRatio = 0.01;
 		
 	protected static double getScore(
 			FirTree model, 
