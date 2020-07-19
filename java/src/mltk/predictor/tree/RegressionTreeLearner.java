@@ -224,7 +224,7 @@ public class RegressionTreeLearner extends Learner {
 	protected int minLeafSize;
 	protected double alpha;
 	protected Mode mode;
-	protected static final Double ZERO = new Double(0.0);
+	protected static final Double ZERO = Double.valueOf(0.0); //new Double(0.0);
 
 	/**
 	 * Constructor.

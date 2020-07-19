@@ -95,13 +95,13 @@ public class RegressionTreeInteriorNode extends RegressionTreeNode {
 		in.readLine();
 
 		Class<?> clazzLeft = Class.forName(in.readLine());
-		left = (RegressionTreeNode) clazzLeft.newInstance();
+		left = (RegressionTreeNode) clazzLeft.getDeclaredConstructor().newInstance(); //clazzLeft.newInstance();
 		left.read(in);
 
 		in.readLine();
 
 		Class<?> clazzRight = Class.forName(in.readLine());
-		right = (RegressionTreeNode) clazzRight.newInstance();
+		right = (RegressionTreeNode) clazzRight.getDeclaredConstructor().newInstance(); //clazzRight.newInstance();
 		right.read(in);
 	}
 
