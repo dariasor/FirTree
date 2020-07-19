@@ -88,7 +88,7 @@ public class CoorAscentOnLeaves {
 	// delta = [ deltaUnit * deltaBase^0, ..., deltaUnit * deltaBase^deltaMaxPower ]
 	public static double deltaUnit = 0.001;
 	public static double deltaBase = 2.0;
-	public static double deltaMaxPower = 15; // A smaller value speeds up training
+	public static double deltaMaxPower = 10; // A smaller value speeds up training
 	public static double minGainTrain = 0.0001; // A larger value speeds up training
 	public static double deltaRatio = 0.01;
 	
@@ -347,14 +347,9 @@ public class CoorAscentOnLeaves {
 			br.close();
 		}
 		
-		// A rank list's weight is computed by averaging weights of the rank list's instances
-		for (RankList rankList : rankLists.values()) {
-			double weight = 0;
-			for (int i = 0; i < rankList.size(); i ++)
-				weight += rankList.get(i).getWeight();
-			weight /= rankList.size();
-			rankList.setWeight(weight);
-		}
+		// Set the weight of a rank list
+		for (RankList rankList : rankLists.values())
+			rankList.setWeight();
 		return rankLists;
 	}
 	

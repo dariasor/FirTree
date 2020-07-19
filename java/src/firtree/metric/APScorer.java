@@ -37,10 +37,4 @@ public class APScorer extends MetricScorer {
 		return null;
 	}
 
-	@Override
-	public double[][] swapChange(RankList rl) {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
 }

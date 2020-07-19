@@ -23,6 +23,7 @@ import firtree.utilities.Sorter;
  */
 public class DCGScorer extends MetricScorer {
 	protected static double[] logrank; // Lazy cache
+	protected static String gain_type = "exponential";
 	
 	public DCGScorer() {
 		this.k = 10;
@@ -67,7 +68,6 @@ public class DCGScorer extends MetricScorer {
 			System.exit(1);
 		}
 		
-		String gain_type = "exponential";
 		int ndcg_at = k;
 		int[] idx_to_pos = Sorter.sort(predictions, false);
 		
@@ -95,6 +95,9 @@ public class DCGScorer extends MetricScorer {
         				"Invalid gain_type '%s'. Use 'linear' for linear gain or 'exponential' for exponential gain", 
         				gain_type
         				));
+        	/*// TODO: Debug
+        	System.out.printf("\t\t\t%d %f\n", idx, gain);
+        	*/
         	
         	double score = predictions[idx_to_pos[idx]];
         	
@@ -104,6 +107,10 @@ public class DCGScorer extends MetricScorer {
         			// (sum of targets) x (sum of discount factors) / (number of tied items)
         			dcg += 1. * sum(dcg_tied_gains) * dcg_tied_mult / dcg_tied_gains.size();
         			dcg_tied_gains.clear();
+        			
+        			/*// TODO: Debug
+        			System.out.printf("\t\t%d %f\n", idx, dcg);
+        			*/
         		}
         		dcg_tied_mult = 0.;
         	}
@@ -118,8 +125,14 @@ public class DCGScorer extends MetricScorer {
         }
 
         // Account for possible tie in last query group
-        if (dcg_tied_gains.size() != 0)
+        if (dcg_tied_gains.size() != 0) {
             dcg += 1. * sum(dcg_tied_gains) * dcg_tied_mult / dcg_tied_gains.size();
+
+			/*// TODO: Debug
+			System.out.printf("\t\t%d %f %f\n", 
+					targets.length, sum(dcg_tied_gains), dcg_tied_mult);
+			*/
+        }
 
         return dcg;
 	}
@@ -159,9 +172,12 @@ public class DCGScorer extends MetricScorer {
 		return logrank[index];
 	}
 
-	@Override
-	public double[][] swapChange(RankList rl) {
-		// TODO Auto-generated method stub
-		return null;
+	public static String getGainType() {
+		return gain_type;
 	}
+
+	public static void setGainType(String gain_type) {
+		DCGScorer.gain_type = gain_type;
+	}
+	
 }

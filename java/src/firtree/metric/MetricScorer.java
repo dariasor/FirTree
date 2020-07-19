@@ -66,8 +66,6 @@ public abstract class MetricScorer {
 
     public abstract String name();
 
-    public abstract double[][] swapChange(RankList rl);
-
     // XW
 	public double[] getTargets(RankList rl) {
 		double[] targets = new double[rl.size()];

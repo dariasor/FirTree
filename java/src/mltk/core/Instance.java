@@ -3,7 +3,7 @@ package mltk.core;
 /**
  * Class for instances.
  * 
- * @author Yin Lou
+ * @author Yin Lou, modified by Xiaojie Wang
  * 
  */
 public class Instance implements Copyable<Instance> {
@@ -12,6 +12,11 @@ public class Instance implements Copyable<Instance> {
 	protected double[] target;
 	protected double weight;
 
+	// XW. Used for evaluation
+	public Instance(double target) {
+		this(new double[0], target, 1.0);
+	}
+	
 	/**
 	 * Constructs a dense instance from values, target and weight.
 	 * 

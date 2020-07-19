@@ -17,6 +17,11 @@ public class Instance extends mltk.core.Instance {
 	// Index in the list of all nodes in a FirTree model, but must be a leaf node's index
 	protected int nodeIndex = -1;
 	
+	// Used for evaluation
+	public Instance(double target) {
+		super(target);
+	}
+	
 	public Instance(mltk.core.Instance instance, AttrInfo ainfoLeaf) {
 		super(instance);
 		this.ainfoLeaf = ainfoLeaf;

@@ -29,6 +29,15 @@ public class RankList {
             this.instances.add(rankList.get(indexes[i]));
         }
     }
+
+	// A rank list's weight is computed by averaging weights of its instances
+    public void setWeight() {
+		double weight = 0;
+		for (int i = 0; i < size(); i ++)
+			weight += instances.get(i).getWeight();
+		weight /= size();
+		setWeight(weight);
+    }
     
 	public Instance get(int index) {
 		return instances.get(index);
