@@ -89,7 +89,7 @@ public class S3DataPreprocessor {
 					selData.add(data[col]);
 				lines.add(String.join("\t", selData));
 			}
-			bwT.write(String.join("\n", lines));
+			bwT.write(String.join("\n", lines) + "\n");
 			br.close();
 			System.out.printf("There are %d instances in %s\n", lines.size(), name);
 		}	
