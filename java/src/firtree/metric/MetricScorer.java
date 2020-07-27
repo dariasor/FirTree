@@ -10,6 +10,7 @@
 package firtree.metric;
 
 import java.util.List;
+import java.util.Map;
 
 import firtree.utilities.RankList;
 
@@ -40,47 +41,44 @@ public abstract class MetricScorer {
         return k;
     }
 
-    public void loadExternalRelevanceJudgment(final String qrelFile) {
-
-    }
-
-    public double score(final List<RankList> rl) {
-        double score = 0.0;
-        for (int i = 0; i < rl.size(); i++) {
-            score += score(rl.get(i));
-        }
-        return score / rl.size();
-    }
-
-    protected int[] getRelevanceLabels(final RankList rl) {
-        final int[] rel = new int[rl.size()];
-        for (int i = 0; i < rl.size(); i++) {
-            rel[i] = (int) rl.get(i).getTarget(); // XW
-        }
-        return rel;
+    public double score(Map<String, RankList> rankLists) {
+		double total = 0.;
+		double weight = 0.;
+		for (RankList rankList : rankLists.values()) {
+			double score = score(rankList);
+			if (! Double.isNaN(score)) {
+				// When tp_fn and fp_tn are never 0 in computing AUC
+				total += score;
+				weight += rankList.getWeight();
+			}
+		}
+		return total / weight;
     }
 
     public abstract double score(RankList rl);
 
-    public abstract MetricScorer copy();
-
     public abstract String name();
 
     // XW
-	public double[] getTargets(RankList rl) {
+	protected double[] getTargets(RankList rl) {
 		double[] targets = new double[rl.size()];
-		for (int i = 0; i < rl.size(); i ++) {
+		for (int i = 0; i < rl.size(); i ++)
 			targets[i] = rl.get(i).getTarget();
-		}
 		return targets;
 	}
 	
 	// XW
-	public double[] getPredictions(RankList rl) {
+	protected double[] getPredictions(RankList rl) {
 		double[] predictions = new double[rl.size()];
-		for (int i = 0; i < rl.size(); i ++) {
+		for (int i = 0; i < rl.size(); i ++)
 			predictions[i] = rl.get(i).getPrediction();
-		}
 		return predictions;
+	}
+	
+	protected double[] getWeights(RankList rl) {
+		double[] weights = new double[rl.size()];
+		for (int i = 0; i < rl.size(); i ++)
+			weights[i] = rl.get(i).getWeight();
+		return weights;
 	}
 }

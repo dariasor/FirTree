@@ -49,11 +49,6 @@ public class DCGScorer extends MetricScorer {
 	}
 	
 	@Override
-	public MetricScorer copy() {
-		return new DCGScorer();
-	}
-	
-	@Override
 	public String name() {
 		return "DCG@" + k;
 	}

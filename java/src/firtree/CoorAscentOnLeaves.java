@@ -9,9 +9,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import firtree.metric.METRIC;
+import firtree.metric.GAUCScorer;
 import firtree.metric.MetricScorer;
-import firtree.metric.MetricScorerFactory;
+import firtree.metric.NDCGScorer;
 import firtree.utilities.FileUtils;
 import firtree.utilities.Instance;
 import firtree.utilities.RankList;
@@ -46,6 +46,10 @@ public class CoorAscentOnLeaves {
 		
 		@Argument(name = "-m", description = "Prefix of name of output parameter files (default: model)")
 		String modelPrefix = "model";
+		
+		// This argument comes from InteractionTreeLearnerGAMMC
+		@Argument(name = "-c", description = "(gauc|ndcg) - metric to optimize (default: gauc)")
+		String metricStr = "gauc";
 	}
 	
 	public static void main(String[] args) throws Exception {
@@ -73,8 +77,11 @@ public class CoorAscentOnLeaves {
 		Map<String, RankList> rankLists = loadRankList(opts, ainfo, model);
 
 		// Fine-tune parameter values of leaf nodes of type MODEL
-		MetricScorerFactory factory = new MetricScorerFactory();
-		MetricScorer scorer = factory.createScorer(METRIC.NDCG);
+		MetricScorer scorer;
+		if (opts.metricStr.equals("gauc"))
+			scorer = new GAUCScorer();
+		else
+			scorer = new NDCGScorer();
 		fineTune(opts, model, rankLists, scorer);
 		
 		// Save final parameter values of leaf nodes of type MODEL
@@ -99,7 +106,7 @@ public class CoorAscentOnLeaves {
 			MetricScorer scorer
 			) {
 		// Create log directory and delete all previous log files
-		String logPath = opts.dir + "_CA";
+		String logPath = opts.dir + "/CA" + opts.polyDegree + "_PLOTS";
 		File logDir = new File(logPath);
 		if (! logDir.exists())
 			logDir.mkdirs();
@@ -246,7 +253,7 @@ public class CoorAscentOnLeaves {
 			double paramDelta
 			) {
 		double total = 0;
-		double size = 0;
+		double weight = 0;
 		model.setParamValue(activeNode, activeParam, paramDelta);
 		for (RankList rankList : rankLists.values()) {
 			if (isActive(rankList, activeNode)) {
@@ -259,13 +266,17 @@ public class CoorAscentOnLeaves {
 					model.predict(instance);
 					*/// Ablative Debug End
 				}
-				double score = scorer.score(rankList);
-				rankList.setScore(score); // Easily forgot
+				// Set is easily forgot
+				rankList.setScore(scorer.score(rankList));
 			}
-			total += rankList.getScore();
-			size += rankList.getWeight();
+			double score = rankList.getScore();
+			if (! Double.isNaN(score)) {
+				// If tp_fn and fp_tn are never 0 when computing AUC
+				total += score;
+				weight += rankList.getWeight();
+			}
 		}
-		return total / size;
+		return total / weight;
 	}
 
 	protected static double getScore(
@@ -274,17 +285,20 @@ public class CoorAscentOnLeaves {
 			MetricScorer scorer
 			) {
 		double total = 0;
-		double size = 0;
+		double weight = 0;
 		for (RankList rankList : rankLists.values()) {
 			for (Instance instance : rankList.getInstances())
 				model.predict(instance);
-			
-			double score = scorer.score(rankList);
-			rankList.setScore(score); // Easily forgot
-			total += rankList.getScore();
-			size += rankList.getWeight();
+			// Set is easily forgot
+			rankList.setScore(scorer.score(rankList));
+			double score = rankList.getScore();
+			if (! Double.isNaN(score)) {
+				// If tp_fn and fp_tn are never 0 when computing AUC
+				total += score;
+				weight += rankList.getWeight();
+			}
 		}
-		return total / size;
+		return total / weight;
 	}
 
 	protected static boolean isActive(RankList rankList, int activeNode) {
@@ -353,8 +367,8 @@ public class CoorAscentOnLeaves {
 		return rankLists;
 	}
 	
-	protected static void timeStamp(String msg) {
-		Date tmpDate = new Date();
-		System.out.println("TIMESTAMP >>>> ".concat(tmpDate.toString()).concat(": ").concat(msg));
-	}	
+	static void timeStamp(String msg) {
+		Date date = new Date();
+		System.out.println("TIMESTAMP >>>> ".concat(date.toString()).concat(": ").concat(msg));
+	}
 }

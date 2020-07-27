@@ -22,19 +22,19 @@ public class NDCGScorer extends DCGScorer {
 	}
 	
 	@Override
-	public double score(RankList rl) {
-		if (rl.size() == 0)
+	public double score(RankList rankList) {
+		if (rankList.size() == 0)
 			return 0.;
 
-		double[] targets = getTargets(rl);
-		double[] predictions = getPredictions(rl);
+		double[] targets = getTargets(rankList);
+		double[] predictions = getPredictions(rankList);
 		
 		double max_dcg = 0.;
-		if (group_id_to_max_dcg.containsKey(rl.getGroupId())) {
-			max_dcg = group_id_to_max_dcg.get(rl.getGroupId());
+		if (group_id_to_max_dcg.containsKey(rankList.getGroupId())) {
+			max_dcg = group_id_to_max_dcg.get(rankList.getGroupId());
 		} else {
 			max_dcg = get_max_dcg(targets);
-			group_id_to_max_dcg.put(rl.getGroupId(), max_dcg);
+			group_id_to_max_dcg.put(rankList.getGroupId(), max_dcg);
 		}
 		
 		if (max_dcg < Math.pow(10, -10))
@@ -46,11 +46,6 @@ public class NDCGScorer extends DCGScorer {
 		*/
 		
 		return dcg / max_dcg;
-	}
-	
-	@Override
-	public MetricScorer copy() {
-		return new NDCGScorer();
 	}
 	
 	@Override

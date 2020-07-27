@@ -2,9 +2,12 @@ package firtree;
 
 import java.io.BufferedReader;
 import java.io.FileReader;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
+import firtree.metric.GAUCScorer;
+import firtree.metric.MetricScorer;
 import firtree.metric.NDCGScorer;
 import firtree.utilities.Instance;
 import firtree.utilities.RankList;
@@ -27,6 +30,10 @@ public class Evaluation {
 		
 		@Argument(name = "-o", description = "output file", required = true)
 		String outputPath = "";
+		
+		// This argument comes from InteractionTreeLearnerGAMMC
+		@Argument(name = "-c", description = "(gauc|ndcg) - metric to optimize (default: gauc)")
+		String metricStr = "gauc";
 	}
 
 	public static void main(String[] args) throws Exception {
@@ -45,6 +52,7 @@ public class Evaluation {
 		Map<String, RankList> rankLists = new HashMap<>();
 		BufferedReader brT = new BufferedReader(new FileReader(opts.testPath));
 		BufferedReader brO = new BufferedReader(new FileReader(opts.outputPath));
+		int nLine = 0;
 		while (true) {
 			String lineT = brT.readLine();
 			String lineO = brO.readLine();
@@ -69,6 +77,11 @@ public class Evaluation {
 			if (! rankLists.containsKey(groupId))
 				rankLists.put(groupId, new RankList(groupId));
 			rankLists.get(groupId).add(instance);
+			
+			nLine += 1;
+			if (nLine % 1000000 == 0) {
+				//timeStamp(String.format("Have scanned %d lines", nLine));
+			}
 		}
 		brO.close();
 		brT.close();
@@ -78,15 +91,13 @@ public class Evaluation {
 			rankList.setWeight();
 
 		//test_calculate_ndcg_whenUnweightedData_thenAccurateNDCG(rankLists);
-		NDCGScorer scorer = new NDCGScorer();
-		double total = 0.;
-		double weight = 0.;
-		for (RankList rankList : rankLists.values()) {
-			total += scorer.score(rankList);
-			weight += rankList.getWeight();
-		}
-		double score = total / weight;
-		System.out.printf("Test %s is %f given predictions in %s\n", 
+		MetricScorer scorer;
+		if (opts.metricStr.equals("gauc"))
+			scorer = new GAUCScorer();
+		else
+			scorer = new NDCGScorer();
+		double score = scorer.score(rankLists);
+		System.out.printf("Test %s is %.4f given predictions in %s\n", 
 				scorer.name(), score, opts.outputPath);
 	}
 	
@@ -113,5 +124,10 @@ public class Evaluation {
 			} else 
 				System.out.printf("%s succeeds\n", groupId);
 		}
+	}
+	
+	static void timeStamp(String msg) {
+		Date date = new Date();
+		System.out.println("TIMESTAMP >>>> ".concat(date.toString()).concat(": ").concat(msg));
 	}
 }
