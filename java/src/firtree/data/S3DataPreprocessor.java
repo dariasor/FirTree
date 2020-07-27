@@ -73,6 +73,7 @@ public class S3DataPreprocessor {
 			selCols.add(attToCol.get(att));
 		System.out.printf("Select %d out of %d attributes\n", selCols.size(), attToCol.size());
 		
+		int total = 0;
 		BufferedWriter bwT = new BufferedWriter(new FileWriter(opts.trainPath));
 		for (String name : dir.list()) {
 			if (! name.endsWith(".csv"))
@@ -91,9 +92,11 @@ public class S3DataPreprocessor {
 			}
 			bwT.write(String.join("\n", lines) + "\n");
 			br.close();
+			total += lines.size();
 			System.out.printf("There are %d instances in %s\n", lines.size(), name);
 		}	
 		bwT.close();
+		System.out.printf("There are %d instances in total", total);
 		
 		BufferedWriter bwR = new BufferedWriter(new FileWriter(opts.attPath));
 		Map<Integer, String> colToAtt = new HashMap<Integer, String>();
