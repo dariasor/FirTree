@@ -81,14 +81,17 @@ public class S3DataPreprocessor {
 			String file = Paths.get(opts.dir, name).toString();
 			BufferedReader br = new BufferedReader(new FileReader(file));
 			br.readLine(); // Skip header
+			List<String> lines = new ArrayList<String>();
 			for (String line = br.readLine(); line != null; line = br.readLine()) {
 				String[] data = line.strip().split("\t");
 				List<String> selData = new ArrayList<String>();
 				for (Integer col : selCols)
 					selData.add(data[col]);
-				bwT.write(String.join("\t", selData) + "\n");
+				lines.add(String.join("\t", selData));
 			}
+			bwT.write(String.join("\n", lines));
 			br.close();
+			System.out.printf("There are %d instances in %s\n", lines.size(), file);
 		}	
 		bwT.close();
 		
