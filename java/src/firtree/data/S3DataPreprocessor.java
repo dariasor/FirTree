@@ -91,7 +91,7 @@ public class S3DataPreprocessor {
 			}
 			bwT.write(String.join("\n", lines));
 			br.close();
-			System.out.printf("There are %d instances in %s\n", lines.size(), file);
+			System.out.printf("There are %d instances in %s\n", lines.size(), name);
 		}	
 		bwT.close();
 		
