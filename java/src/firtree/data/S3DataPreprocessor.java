@@ -7,6 +7,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -48,7 +49,7 @@ public class S3DataPreprocessor {
 			String line = br.readLine();
 			String[] data = line.strip().split("\t");
 			if (attToCol.size() == 0) {
-				System.out.printf("Load header from %s\n", name);
+				timeStamp(String.format("Load header from %s", name));
 				int col = 0;
 				for (String att : data) {
 					attToCol.put(att, col);
@@ -71,7 +72,7 @@ public class S3DataPreprocessor {
 		List<Integer> selCols = new ArrayList<Integer>();
 		for (String att : attToCol.keySet())
 			selCols.add(attToCol.get(att));
-		System.out.printf("Select %d out of %d attributes\n", selCols.size(), attToCol.size());
+		timeStamp(String.format("Select %d out of %d attributes", selCols.size(), attToCol.size()));
 		
 		int total = 0;
 		BufferedWriter bwT = new BufferedWriter(new FileWriter(opts.trainPath));
@@ -93,10 +94,10 @@ public class S3DataPreprocessor {
 			bwT.write(String.join("\n", lines) + "\n");
 			br.close();
 			total += lines.size();
-			System.out.printf("There are %d instances in %s\n", lines.size(), name);
+			timeStamp(String.format("Find %d instances in %s", lines.size(), name));
 		}	
 		bwT.close();
-		System.out.printf("There are %d instances in total", total);
+		timeStamp(String.format("Find %d instances in total", total));
 		
 		BufferedWriter bwR = new BufferedWriter(new FileWriter(opts.attPath));
 		Map<Integer, String> colToAtt = new HashMap<Integer, String>();
@@ -107,4 +108,8 @@ public class S3DataPreprocessor {
 		bwR.close();
 	}
 
+	static void timeStamp(String msg) {
+		Date date = new Date();
+		System.out.println("TIMESTAMP >>>> ".concat(date.toString()).concat(": ").concat(msg));
+	}
 }
