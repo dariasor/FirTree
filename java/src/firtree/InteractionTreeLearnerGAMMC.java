@@ -209,17 +209,21 @@ public class InteractionTreeLearnerGAMMC{
 		int clsColNo = app.ainfo.getClsCol();
 
  		for (String line = br.readLine(); line != null; data_size++) {
- 			String[] data = line.split("\t+");
+ 			String[] datapoint = line.split("\t+");
+ 			if(datapoint.length != app.ainfo.getColN()) {
+					System.err.println("Error: The number of values in line " + (data_size + 1) + " does not match the number of attributes specified by the attribute file.");
+					System.exit(1);  				
+ 			}
  			try {
- 				double clsValue = Double.parseDouble(data[clsColNo]);
+ 				double clsValue = Double.parseDouble(datapoint[clsColNo]);
  				if(clsValue == 0)
  					zero_size++;
  				if(!app.regression && ((clsValue < 0) || (clsValue > 1))) {
- 					System.err.println("Error: The response column contains value \"" + data[clsColNo] + "\" in line " + (data_size + 1) + ". Not compatible with the AUC metric.");
+ 					System.err.println("Error: The response column contains value \"" + datapoint[clsColNo] + "\" in line " + (data_size + 1) + ". Not compatible with the AUC metric.");
  					System.exit(1); 					
  				}
 			} catch(java.lang.NumberFormatException e) {
-				System.err.println("Error: The response column contains a text value \"" + data[clsColNo] + "\" in line " + (data_size + 1));
+				System.err.println("Error: The response column contains a text value \"" + datapoint[clsColNo] + "\" in line " + (data_size + 1));
 				System.exit(1);
 			}	
  			data_out.write(line + "\n");
