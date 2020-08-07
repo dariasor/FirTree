@@ -40,21 +40,31 @@ public class InteractionTreeLearnerGAMMC{
 		int data_size; 
 		int zero_size;
 		boolean tree_size_limit_reached;
+		int nThread;
 		InteractionTreeNode node;
 		
-		NodeCreationThread(Options opts, InteractionTreeLearnerGAMMC app, int data_size, int zero_size, String prefix, boolean tree_size_limit_reached) {
+		NodeCreationThread(
+				Options opts, 
+				InteractionTreeLearnerGAMMC app, 
+				int data_size, 
+				int zero_size, 
+				String prefix, 
+				boolean tree_size_limit_reached,
+				int nThread
+				) {
 			this.opts = opts;
 			this.app = app;
 			this.data_size = data_size;
 			this.zero_size = zero_size;
 			this.prefix = prefix;
 			this.tree_size_limit_reached = tree_size_limit_reached;
+			this.nThread = nThread;
 			node = null;
 		}
 		
 		public void run() {
 			try {
-				node = app.createNode(data_size, zero_size, prefix, tree_size_limit_reached);
+				node = app.createNode(data_size, zero_size, prefix, tree_size_limit_reached, nThread);
 			} catch (Exception e) {
 				e.printStackTrace();
 				try {
@@ -248,9 +258,16 @@ public class InteractionTreeLearnerGAMMC{
 	}
 
 	public void build(int data_size, int zero_size) throws Exception {
+		int nProcessor = Runtime.getRuntime().availableProcessors();
 		Map<InteractionTreeNode, String> prefix = new HashMap<>();
 		int leafN = 1;
-		InteractionTreeNode root = createNode(data_size, zero_size, "Root", leafN >= opts.maxLeaves);
+		InteractionTreeNode root = createNode(
+					data_size, 
+					zero_size, 
+					"Root", 
+					leafN >= opts.maxLeaves,
+					nProcessor
+					);
 		prefix.put(root, "Root");
 		Queue<InteractionTreeNode> q = new Queue<>(); //queue of internal nodes
 		if(!root.isLeaf()) {			
@@ -291,8 +308,24 @@ public class InteractionTreeLearnerGAMMC{
 			DataSizes sizes = split(ainfo.attributes.get(interiorNode.attIndex).getColumn(), 
 					interiorNode.splitPoint, dataStr, dataStrL, dataStrR);
 	
-			NodeCreationThread lThread = new NodeCreationThread(opts, this, sizes.left_size, sizes.left_zero_size, pre + "_L", leafN >= opts.maxLeaves);
-			NodeCreationThread rThread = new NodeCreationThread(opts, this, sizes.right_size, sizes.right_zero_size, pre + "_R", leafN >= opts.maxLeaves);
+			NodeCreationThread lThread = new NodeCreationThread(
+					opts, 
+					this, 
+					sizes.left_size, 
+					sizes.left_zero_size, 
+					pre + "_L", 
+					leafN >= opts.maxLeaves,
+					nProcessor / 2
+					);
+			NodeCreationThread rThread = new NodeCreationThread(
+					opts, 
+					this, 
+					sizes.right_size, 
+					sizes.right_zero_size, 
+					pre + "_R", 
+					leafN >= opts.maxLeaves,
+					nProcessor / 2
+					);
 			lThread.start();
 			rThread.start();
 			lThread.join();
@@ -416,7 +449,13 @@ public class InteractionTreeLearnerGAMMC{
 		}	
 	}
 	
-	protected InteractionTreeNode createNode(int data_size, int zero_size, String prefix, boolean tree_size_limit_reached) 
+	protected InteractionTreeNode createNode(
+				int data_size, 
+				int zero_size, 
+				String prefix, 
+				boolean tree_size_limit_reached,
+				int nThread
+				)
 			throws Exception {
 		StringBuilder sb = new StringBuilder();
 		sb.append(prefix + "\n");
@@ -471,7 +510,7 @@ public class InteractionTreeLearnerGAMMC{
 		
 		// 2. Fast feature selection
 		timeStamp("Select 12 features for AG.");
-		runProcess(dir, BT, attr, train, valid, "-k 12 -b 300 -a 0.01"); 
+		runProcess(dir, BT, attr, train, valid, String.format("-k 12 -b 300 -a 0.01 -h %d", nThread)); 
  
 		Path fsLogSrc = fs.getPath(tmpDir + File.separator + "log.txt");
 		Path fsLogDst = fs.getPath(tmpDir + File.separator + "log_fs.txt");
@@ -486,7 +525,7 @@ public class InteractionTreeLearnerGAMMC{
 
 		// 3. Run ag and get interactions
 		timeStamp("Run AG with selected features on the small train set.");
-		runProcess(dir, AG, attrfs12, attrfsfs, trainAG, validAG); 
+		runProcess(dir, AG, attrfs12, attrfsfs, trainAG, validAG, String.format("-h %d", nThread)); 
 		// Backup log and model
 		Path agLogSrc = fs.getPath(tmpDir + File.separator + "log.txt");
 		Path agLogDst = fs.getPath(tmpDir + File.separator + "log_ag.txt");
