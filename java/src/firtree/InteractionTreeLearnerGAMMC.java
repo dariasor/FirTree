@@ -512,6 +512,12 @@ public class InteractionTreeLearnerGAMMC{
 		timeStamp("Select 12 features for AG.");
 		runProcess(dir, BT, attr, train, valid, String.format("-k 12 -b 300 -a 0.01 -h %d", nThread)); 
  
+		// XW. Remove bulky BTTemp after running bt_train
+		File btDir = new File(tmpDir + File.separator + "BTTemp");
+		for (File entry : btDir.listFiles()) {
+			entry.delete();
+		}
+		
 		Path fsLogSrc = fs.getPath(tmpDir + File.separator + "log.txt");
 		Path fsLogDst = fs.getPath(tmpDir + File.separator + "log_fs.txt");
 		Path fsModelSrc = fs.getPath(tmpDir + File.separator + "model.bin");
@@ -549,8 +555,7 @@ public class InteractionTreeLearnerGAMMC{
 		
 		//done with AG, so remove bulky AGTemp
 		File agDir = new File(tmpDir + File.separator + "AGTemp");
-		File[] entries = agDir.listFiles();
-		for (File entry : entries) {
+		for (File entry : agDir.listFiles()) {
 			entry.delete();
 		}
 
