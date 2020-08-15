@@ -2,7 +2,9 @@ package mltk.core.io;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import mltk.core.Attribute;
 
@@ -22,6 +24,7 @@ public class AttrInfo {
 	public Attribute wtAttr;
 	public HashMap<String, Integer> nameToCol;	//defined for all attributes
 	public HashMap<String, Integer> nameToId;	//defined for active attributes only (inactive don't have id)
+	public Set<String> leafNames;
 	
 	/**
 	 * Default constructor 
@@ -30,6 +33,7 @@ public class AttrInfo {
 		this.attributes = new ArrayList<Attribute>();
 		this.nameToCol = new HashMap<String, Integer>();
 		this.nameToId = new HashMap<String, Integer>();
+		this.leafNames = new HashSet<String>();
 	}
 	
 	public int getClsCol() {
