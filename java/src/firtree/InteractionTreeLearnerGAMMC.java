@@ -275,7 +275,7 @@ public class InteractionTreeLearnerGAMMC{
 			leafN++;
 		}
 		
-		q.dequeue(); // TODO: Only create the root node
+		// q.dequeue(); // TODO: Only create the root node
 		
 		while (!q.isEmpty()) {
 			InteractionTreeNode node = q.dequeue();
@@ -347,8 +347,13 @@ public class InteractionTreeLearnerGAMMC{
 		}			
 	}
 	
-	protected static void split(Instances instances, int attIndex, double splitPoint, 
-			Pointers left, Pointers right) {
+	protected static void split(
+			Instances instances, 
+			int attIndex, 
+			double splitPoint, 
+			Pointers left, 
+			Pointers right
+			) {
 		for (int i = 0; i < instances.size(); i ++) {
 			Instance instance = instances.get(i);
 			if ((instance.getValue(attIndex) <= splitPoint) || 
@@ -600,10 +605,11 @@ public class InteractionTreeLearnerGAMMC{
 		
 		// TODO: Train parent GAM and child GAMs in parallel
 		// 5. Build a GAM for parent
+		// 5. Prepare train set and valid set for GAM
  		Instances trainSet = InstancesReader.read(ainfo, train, "\t+", true);
 		Instances validSet = InstancesReader.read(ainfo, valid, "\t+", true);
 
-		timeStamp("Build a GAM for the parent node.");
+		//timeStamp("Build a GAM for the parent node.");
 		
 		GAMLearner learner = new GAMLearner();
 		Metric metric;
@@ -624,34 +630,7 @@ public class InteractionTreeLearnerGAMMC{
 		for(Instance instance : validSet)
 			for(int a = 0; a < attrN; a++)
 				if(Double.isNaN(instance.getValue(a)))
-					instance.setValue(a, 0);
-
-		GAM gam;
-		if(regression) {
-			gam = learner.buildRegressor(trainSet, validSet, maxNumItersGAM, maxNumLeavesGAM);
-		} else {
-			gam = learner.buildClassifier(trainSet, validSet, maxNumItersGAM, maxNumLeavesGAM);
-		}
-		
-		double[] targetsValid = new double[validSet.size()];
-		double[] predsValid = new double[validSet.size()];
-		double[] weightsValid = new double[validSet.size()];
-		int vNo = 0;
-		for (Instance instance : validSet) {
-			predsValid[vNo] = gam.regress(instance);
-			targetsValid[vNo] = instance.getTarget();
-			weightsValid[vNo] = instance.getWeight();
-			vNo++;
-		}
-		
-		double parentScore = metric.eval(predsValid, targetsValid, weightsValid);
-		sb.append("Parent " + metric.toString() + ": " + parentScore + "\n");
-		
-		PrintWriter out = new PrintWriter(tmpDir + File.separator + "parent.txt");
-		out.println(parentScore);
-		out.flush();
-		out.close();
-		
+					instance.setValue(a, 0);	
 
 		//6. Plots
 		timeStamp("Visualization.");
@@ -669,14 +648,29 @@ public class InteractionTreeLearnerGAMMC{
 			candidateFeatures.add(feature);
 		}
 
-		// 8. Evaluate splits with GAMs
+		// 8. Evaluate splits with parent GAM and child GAMs
 		timeStamp("Evaluate splits.");
 		int bestAtt = -1;
 		double bestSplit = -1;
 		double bestScore = metric.worstValue();
 		
-		List<Future<Triple<Integer, Double, Double>>> futures = new ArrayList<>();
+		List<Future<GAMLearningResult>> results = new ArrayList<>();
 		ExecutorService executor = Executors.newFixedThreadPool(opts.nSplitEvaluation);
+		// Parent GAM
+		timeStamp("Training parent is added to thread pool");
+		{
+			GAMLearningTask task = new GAMLearningTask(
+					this, 
+					tmpDir, 
+					trainSet, 
+					validSet, 
+					learner, 
+					metric
+					);
+			Future<GAMLearningResult> result = executor.submit(task);
+			results.add(result);
+		}
+		// Child GAMs
 		for (int i = 0; i < candidateFeatures.size(); i++) {
 			String featureName = candidateFeatureNames.get(i);
 			int attIndex = ainfo.nameToId.get(featureName);
@@ -684,23 +678,44 @@ public class InteractionTreeLearnerGAMMC{
 			for (int j = 0; j < split.splits.length; j++) {
 				double splitPoint = (split.feature.centers[j] + split.feature.centers[j + 1]) / 2;
 				timeStamp("Evaluating feature " + featureName + " split " + splitPoint + " is added to thread pool");
-				SplitEvaluationTask task = new SplitEvaluationTask(this, tmpDir, 
-						trainSet, validSet, learner, metric, attIndex, featureName, split, splitPoint);
-				Future<Triple<Integer, Double, Double>> future = executor.submit(task);
-				futures.add(future);
+				GAMLearningTask task = new GAMLearningTask(
+						this, 
+						tmpDir, 
+						trainSet, 
+						validSet, 
+						learner, 
+						metric, 
+						attIndex, 
+						featureName, 
+						split, 
+						splitPoint);
+				Future<GAMLearningResult> future = executor.submit(task);
+				results.add(future);
 			}
 		}
 		executor.shutdown();
 		while (! executor.isTerminated());
-		for (Future<Triple<Integer, Double, Double>> future : futures) {
-//			timeStamp(String.format("Evaluating feature %d split %f is terminated with score %f", future.get().v1, future.get().v2, future.get().v3));
-			if (metric.isFirstBetter(future.get().v3, bestScore)) {
-				bestAtt = future.get().v1;
-				bestSplit = future.get().v2;
-				bestScore = future.get().v3;
+		
+		double parentScore = Double.NaN;
+		for (Future<GAMLearningResult> result : results) {
+			if (result.get().isParent) {
+				parentScore = result.get().parentScore;
+			} else {
+				timeStamp(String.format("Evaluating feature %d split %f is terminated with score %f", 
+						result.get().attIndex, result.get().splitPoint, result.get().splitScore));
+				if (metric.isFirstBetter(result.get().splitScore, bestScore)) {
+					bestAtt = result.get().attIndex;
+					bestSplit = result.get().splitPoint;
+					bestScore = result.get().splitScore;
+				}
 			}
 		}
-		timeStamp("Finished evaluating all of the splits");
+		sb.append("Parent " + metric.toString() + ": " + parentScore + "\n");
+		PrintWriter out = new PrintWriter(tmpDir + File.separator + "parent.txt");
+		out.println(parentScore);
+		out.flush();
+		out.close();
+		timeStamp("Finished training parent and evaluating all of the splits");
 
 		//9. Final output: best split and its visualization
 		if (bestAtt >= 0) {
@@ -776,8 +791,16 @@ public class InteractionTreeLearnerGAMMC{
 		printLog(sb);		
 	}
 	
-	protected double evaluateSplitInPlace(String tmpDir, Instances trainSet, Instances validSet,
-			GAMLearner learner, Metric metric, int attIndex, FeatureSplit split, double splitPoint) throws OutOfMemoryError {
+	protected double evaluateSplitInPlace(
+			String tmpDir, 
+			Instances trainSet, 
+			Instances validSet,
+			GAMLearner learner, 
+			Metric metric, 
+			int attIndex, 
+			FeatureSplit split, 
+			double splitPoint
+			) throws OutOfMemoryError {
 		int vNo;
 		PrintWriter out;
 
@@ -798,9 +821,23 @@ public class InteractionTreeLearnerGAMMC{
 		vNo = 0;
 		GAM gamL;
 		if(regression) {
-			gamL = learner.buildRegressor(trainSet, trainLeft, validSet, validLeft, maxNumItersGAM, maxNumLeavesGAM);
+			gamL = learner.buildRegressor(
+					trainSet, 
+					trainLeft, 
+					validSet, 
+					validLeft, 
+					maxNumItersGAM, 
+					maxNumLeavesGAM
+					);
 		} else {
-			gamL = learner.buildClassifier(trainSet, trainLeft, validSet, validLeft, maxNumItersGAM, maxNumLeavesGAM);
+			gamL = learner.buildClassifier(
+					trainSet, 
+					trainLeft, 
+					validSet, 
+					validLeft, 
+					maxNumItersGAM, 
+					maxNumLeavesGAM
+					);
 		}
 		for (Pointer pointer : validLeft) {
 			Instance instance = validSet.get(pointer.getIndex());
@@ -812,9 +849,23 @@ public class InteractionTreeLearnerGAMMC{
 
 		GAM gamR;
 		if(regression) {
-			gamR = learner.buildRegressor(trainSet, trainRight, validSet, validRight, maxNumItersGAM, maxNumLeavesGAM);
+			gamR = learner.buildRegressor(
+					trainSet, 
+					trainRight, 
+					validSet, 
+					validRight, 
+					maxNumItersGAM, 
+					maxNumLeavesGAM
+					);
 		} else {
-			gamR = learner.buildClassifier(trainSet, trainRight, validSet, validRight, maxNumItersGAM, maxNumLeavesGAM);
+			gamR = learner.buildClassifier(
+					trainSet, 
+					trainRight, 
+					validSet, 
+					validRight, 
+					maxNumItersGAM, 
+					maxNumLeavesGAM
+					);
 		}
 		for (Pointer pointer : validRight) {
 			Instance instance = validSet.get(pointer.getIndex());
@@ -1110,7 +1161,6 @@ public class InteractionTreeLearnerGAMMC{
 		return new Pair<List<String>, String> (candidates, candType);
 	}
 	
-
 	protected static Set<String> getCoreFeatures(String coreFeaturesFileName) throws Exception{
 		
 		Set<String> coreFeatures = new HashSet<>();
@@ -1128,4 +1178,17 @@ public class InteractionTreeLearnerGAMMC{
 		
 		return coreFeatures;
 	}
+
+	public Boolean getRegression() {
+		return regression;
+	}
+
+	public static int getMaxNumItersGAM() {
+		return maxNumItersGAM;
+	}
+
+	public static int getMaxNumLeavesGAM() {
+		return maxNumLeavesGAM;
+	}
+	
 }
