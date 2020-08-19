@@ -25,6 +25,7 @@ public class AttrInfo {
 	public HashMap<String, Integer> nameToCol;	//defined for all attributes
 	public HashMap<String, Integer> nameToId;	//defined for active attributes only (inactive don't have id)
 	public Set<String> leafNames;
+	public Set<String> splitNames;
 	
 	/**
 	 * Default constructor 
@@ -34,6 +35,7 @@ public class AttrInfo {
 		this.nameToCol = new HashMap<String, Integer>();
 		this.nameToId = new HashMap<String, Integer>();
 		this.leafNames = new HashSet<String>();
+		this.splitNames = new HashSet<String>();
 	}
 	
 	public int getClsCol() {
