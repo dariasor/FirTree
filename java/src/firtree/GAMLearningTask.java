@@ -1,8 +1,12 @@
 package firtree;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
+import firtree.metric.MetricScorer;
+import firtree.utilities.RankList;
 import mltk.core.Instance;
 import mltk.core.Instances;
 import mltk.core.Pointer;
@@ -20,6 +24,7 @@ public class GAMLearningTask implements Callable<GAMLearningResult> {
 	Instances validSet;
 	GAMLearner learner;
 	Metric metric;
+	MetricScorer scorer;
 	int attIndex;
 	String featureName;
 	FeatureSplit split;
@@ -35,7 +40,8 @@ public class GAMLearningTask implements Callable<GAMLearningResult> {
 			Instances trainSet, 
 			Instances validSet, 
 			GAMLearner learner, 
-			Metric metric
+			Metric metric,
+			MetricScorer scorer
 			) {
 		this.isParent = true;
 		this.app = app;
@@ -44,6 +50,7 @@ public class GAMLearningTask implements Callable<GAMLearningResult> {
 		this.validSet = validSet;
 		this.learner = learner;
 		this.metric = metric;
+		this.scorer = scorer;
 	}
 	
 	public GAMLearningTask(
@@ -53,6 +60,7 @@ public class GAMLearningTask implements Callable<GAMLearningResult> {
 			Instances validSet, 
 			GAMLearner learner, 
 			Metric metric, 
+			MetricScorer scorer,
 			int attIndex, 
 			String featureName, 
 			FeatureSplit split, 
@@ -65,6 +73,7 @@ public class GAMLearningTask implements Callable<GAMLearningResult> {
 		this.validSet = validSet;
 		this.learner = learner;
 		this.metric = metric;
+		this.scorer = scorer;
 		this.attIndex = attIndex;
 		this.featureName = featureName;
 		this.split = split;
@@ -110,18 +119,48 @@ public class GAMLearningTask implements Callable<GAMLearningResult> {
 								);
 					}
 					
-					double[] targetsValid = new double[validSet.size()];
-					double[] predsValid = new double[validSet.size()];
-					double[] weightsValid = new double[validSet.size()];
-					int vNo = 0;
-					for (Instance instance : validSet) {
-						predsValid[vNo] = gam.regress(instance);
-						targetsValid[vNo] = instance.getTarget();
-						weightsValid[vNo] = instance.getWeight();
-						vNo++;
+					if (scorer == null) {
+						double[] targetsValid = new double[validSet.size()];
+						double[] predsValid = new double[validSet.size()];
+						double[] weightsValid = new double[validSet.size()];
+						int vNo = 0;
+						for (Instance instance : validSet) {
+							predsValid[vNo] = gam.regress(instance);
+							targetsValid[vNo] = instance.getTarget();
+							weightsValid[vNo] = instance.getWeight();
+							vNo++;
+						}
+						parentScore = metric.eval(predsValid, targetsValid, weightsValid);
+					} else {
+						Map<String, RankList> rankLists = new HashMap<String, RankList>();
+						for (Instance allIns : validSet) {
+							String groupId = allIns.getGroupId();
+							if (! rankLists.containsKey(groupId)) {
+								rankLists.put(groupId, new RankList(groupId));
+							}
+							firtree.utilities.Instance subIns = new firtree.utilities.Instance(allIns.getTarget());
+							subIns.setPrediction(gam.regress(allIns));
+							subIns.setWeight(allIns.getWeight());
+							rankLists.get(groupId).add(subIns);
+						}
+						for (RankList rankList : rankLists.values()) {
+							rankList.setWeight();
+							
+							// TODO: Remove
+							if (Math.abs(rankList.getWeight() - 1.) > Math.pow(10, -10)) {
+								System.err.println("GAMLearningTask TODO");
+								System.exit(1);
+							}
+						}
+						parentScore = scorer.score(rankLists);
+						
+						// TODO: Remove
+						double avgSize = 0.;
+						for (RankList rankList : rankLists.values())
+							avgSize += rankList.size();
+						avgSize /= rankLists.size();
+						InteractionTreeLearnerGAMMC.timeStamp(String.format("Parent GAM has %d lists, each having %.2f points on average", rankLists.size(), avgSize));
 					}
-					
-					parentScore = metric.eval(predsValid, targetsValid, weightsValid);
 					
 					long stop = System.currentTimeMillis();
 					long elapse = (stop - start) / (1000 * 60) + 1;
@@ -134,8 +173,17 @@ public class GAMLearningTask implements Callable<GAMLearningResult> {
 //					splitScore = app.evaluateSplit(tmpDir, 
 //							trainSet, validSet, learner, metric, attIndex, split, splitPoint);
 					// Memory efficient split evaluation
-					splitScore = app.evaluateSplitInPlace(tmpDir, 
-							trainSet, validSet, learner, metric, attIndex, split, splitPoint);
+					splitScore = app.evaluateSplitInPlace(
+							tmpDir, 
+							trainSet, 
+							validSet, 
+							learner, 
+							metric, 
+							scorer,
+							attIndex, 
+							split, 
+							splitPoint
+							);
 					long stop = System.currentTimeMillis();
 					long elapse = (stop - start) / (1000 * 60) + 1;
 					InteractionTreeLearnerGAMMC.timeStamp("Completed evaluation of feature " + featureName + " split " + splitPoint + " in " + elapse + " min");
@@ -143,10 +191,11 @@ public class GAMLearningTask implements Callable<GAMLearningResult> {
 				
 				break;
 			} catch (OutOfMemoryError rerun) {
-				if (isParent)
+				if (isParent) {
 					InteractionTreeLearnerGAMMC.timeStamp("Training of parent failed and will be rerun in " + sleep + " min");
-				else
+				} else {
 					InteractionTreeLearnerGAMMC.timeStamp("Evaluation of feature " + featureName + " split " + splitPoint + " failed and will be rerun in " + sleep + " min");
+				}
 				
 				try {
 					TimeUnit.MINUTES.sleep(sleep);

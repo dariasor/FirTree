@@ -7,6 +7,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
+import firtree.metric.GAUCScorer;
+import firtree.metric.MetricScorer;
+import firtree.metric.NDCGScorer;
+import firtree.utilities.RankList;
 import mltk.cmdline.Argument;
 import mltk.cmdline.CmdLineParser;
 import mltk.core.Instance;
@@ -29,7 +33,7 @@ import mltk.util.tuple.*;
  * @author Daria Sorokina, modified by Xiaojie Wang
  *
  */
-public class InteractionTreeLearnerGAMMC{
+public class InteractionTreeLearnerGAMMC {
 	
 	static class NodeCreationThread extends Thread {
 		
@@ -110,9 +114,12 @@ public class InteractionTreeLearnerGAMMC{
 		@Argument(name = "-g", description = "name of the attribute with the group id (default: \"\")")
 		String group = "None";
 		
-		@Argument(name = "-c", description = "(rms|roc) - metric to evaluate splits (default: rms)")
+		@Argument(name = "-c", description = "(rms|roc) - metric to train GAMs in splits (default: roc)")
 		String metricStr = "roc";
-	
+		
+		@Argument(name = "-e", description = "(gauc|ndcg) - metric to evaluate splits (default: gauc)")
+		String metricEval = "gauc";
+		
 		@Argument(name = "-n", description = "number of parallel split evaluations (default: #cores)")
 		int nSplitEvaluation = Runtime.getRuntime().availableProcessors();
 		
@@ -137,9 +144,10 @@ public class InteractionTreeLearnerGAMMC{
 		ainfo = AttributesReader.read(opts.attPath);
 		group_col = 0;
 		if(!opts.group.equals("None")) {
-			if(ainfo.nameToCol.containsKey(opts.group))
+			if(ainfo.nameToCol.containsKey(opts.group)) {
 				group_col = ainfo.nameToCol.get(opts.group) + 1;
-			else {
+				ainfo.groupCol = ainfo.nameToCol.get(opts.group);
+			} else {
 				System.err.println("Error: the feature with the name " + opts.group + " does not exist.");
 				System.exit(1);
 			}
@@ -618,6 +626,13 @@ public class InteractionTreeLearnerGAMMC{
 		else
 			metric = new AUC();
 		
+		// We use RMSE or AUC when scorer is not GAUC or NDCG
+		MetricScorer scorer = null;
+		if (opts.metricEval.equals("gauc"))
+			scorer = new GAUCScorer();
+		if (opts.metricEval.equals("ndcg"))
+			scorer = new NDCGScorer();
+		
 		learner.setMetric(metric);
 		learner.setLearningRate(0.01);
 		learner.setBaggingIters(0);
@@ -665,7 +680,8 @@ public class InteractionTreeLearnerGAMMC{
 					trainSet, 
 					validSet, 
 					learner, 
-					metric
+					metric,
+					scorer
 					);
 			Future<GAMLearningResult> result = executor.submit(task);
 			results.add(result);
@@ -685,10 +701,12 @@ public class InteractionTreeLearnerGAMMC{
 						validSet, 
 						learner, 
 						metric, 
+						scorer,
 						attIndex, 
 						featureName, 
 						split, 
-						splitPoint);
+						splitPoint
+						);
 				Future<GAMLearningResult> future = executor.submit(task);
 				results.add(future);
 			}
@@ -710,7 +728,11 @@ public class InteractionTreeLearnerGAMMC{
 				}
 			}
 		}
-		sb.append("Parent " + metric.toString() + ": " + parentScore + "\n");
+		if (scorer == null) {
+			sb.append("Parent " + metric.toString() + ": " + parentScore + "\n");
+		} else {
+			sb.append("Parent " + scorer.name() + ": " + parentScore + "\n");
+		}
 		PrintWriter out = new PrintWriter(tmpDir + File.separator + "parent.txt");
 		out.println(parentScore);
 		out.flush();
@@ -719,7 +741,12 @@ public class InteractionTreeLearnerGAMMC{
 
 		//9. Final output: best split and its visualization
 		if (bestAtt >= 0) {
-			sb.append("Best " + metric + ": " + bestScore + "\n");
+			if (scorer == null) {
+				sb.append("Best " + metric + ": " + bestScore + "\n");
+			} else {
+				sb.append("Best " + scorer.name() + ": " + bestScore + "\n");
+			}
+			
 			if (metric.isFirstBetter(bestScore, parentScore)) {
 				sb.append("Best feature: " + ainfo.attributes.get(bestAtt).getName() + "\n");
 				sb.append("Best split: " + bestSplit + "\n");
@@ -797,11 +824,11 @@ public class InteractionTreeLearnerGAMMC{
 			Instances validSet,
 			GAMLearner learner, 
 			Metric metric, 
+			MetricScorer scorer,
 			int attIndex, 
 			FeatureSplit split, 
 			double splitPoint
 			) throws OutOfMemoryError {
-		int vNo;
 		PrintWriter out;
 
 		// 8.1 Split the dataset
@@ -814,11 +841,6 @@ public class InteractionTreeLearnerGAMMC{
 		split(validSet, attIndex, splitPoint, validLeft, validRight);
 
 		//8.2.1 Build GAM models
-		int actual_valid_size = validLeft.size() + validRight.size();
-		double[] targets = new double[actual_valid_size];
-		double[] preds = new double[actual_valid_size];
-		double[] weights = new double[actual_valid_size];
-		vNo = 0;
 		GAM gamL;
 		if(regression) {
 			gamL = learner.buildRegressor(
@@ -838,13 +860,6 @@ public class InteractionTreeLearnerGAMMC{
 					maxNumItersGAM, 
 					maxNumLeavesGAM
 					);
-		}
-		for (Pointer pointer : validLeft) {
-			Instance instance = validSet.get(pointer.getIndex());
-			targets[vNo] = instance.getTarget();
-			preds[vNo] = gamL.regress(instance);
-			weights[vNo] = instance.getWeight();
-			vNo++;
 		}
 
 		GAM gamR;
@@ -867,16 +882,76 @@ public class InteractionTreeLearnerGAMMC{
 					maxNumLeavesGAM
 					);
 		}
-		for (Pointer pointer : validRight) {
-			Instance instance = validSet.get(pointer.getIndex());
-			targets[vNo] = instance.getTarget();
-			preds[vNo] = gamR.regress(instance);
-			weights[vNo] = instance.getWeight();
-			vNo++;
+		
+		double splitScore = Double.NaN;
+		if (scorer == null) {
+			int vNo = 0;
+			int actual_valid_size = validLeft.size() + validRight.size();
+			double[] targets = new double[actual_valid_size];
+			double[] preds = new double[actual_valid_size];
+			double[] weights = new double[actual_valid_size];
+		
+			for (Pointer pointer : validLeft) {
+				Instance instance = validSet.get(pointer.getIndex());
+				targets[vNo] = instance.getTarget();
+				preds[vNo] = gamL.regress(instance);
+				weights[vNo] = instance.getWeight();
+				vNo++;
+			}
+			for (Pointer pointer : validRight) {
+				Instance instance = validSet.get(pointer.getIndex());
+				targets[vNo] = instance.getTarget();
+				preds[vNo] = gamR.regress(instance);
+				weights[vNo] = instance.getWeight();
+				vNo++;
+			}
+			
+			splitScore = metric.eval(preds, targets, weights);
+		} else {
+			Map<String, RankList> rankLists = new HashMap<String, RankList>();
+			
+			for (Pointer pointer : validLeft) {
+				Instance allIns = validSet.get(pointer.getIndex());
+				String groupId = allIns.getGroupId();
+				if (! rankLists.containsKey(groupId)) {
+					rankLists.put(groupId, new RankList(groupId));
+				}
+				firtree.utilities.Instance subIns = new firtree.utilities.Instance(allIns.getTarget());
+				subIns.setPrediction(gamL.regress(allIns));
+				subIns.setWeight(allIns.getWeight());
+				rankLists.get(groupId).add(subIns);
+			}
+			for (Pointer pointer : validRight) {
+				Instance allIns = validSet.get(pointer.getIndex());
+				String groupId = allIns.getGroupId();
+				if (! rankLists.containsKey(groupId)) {
+					rankLists.put(groupId, new RankList(groupId));
+				}
+				firtree.utilities.Instance subIns = new firtree.utilities.Instance(allIns.getTarget());
+				subIns.setPrediction(gamR.regress(allIns));
+				subIns.setWeight(allIns.getWeight());
+				rankLists.get(groupId).add(subIns);
+			}
+			
+			for (RankList rankList : rankLists.values()) {
+				rankList.setWeight();
+				
+				// TODO: Remove
+				if (Math.abs(rankList.getWeight() - 1.) > Math.pow(10, -10)) {
+					System.err.println("InteractionTreeLearnerGAMMC TODO");
+					System.exit(1);
+				}
+			}
+			splitScore = scorer.score(rankLists);
+			
+			// TODO: Remove
+			double avgSize = 0.;
+			for (RankList rankList : rankLists.values())
+				avgSize += rankList.size();
+			avgSize /= rankLists.size();
+			timeStamp(String.format("Child GAMs have %d lists, each having %.2f points on average", rankLists.size(), avgSize));
 		}
-
-		double splitScore = metric.eval(preds, targets, weights);
-
+		
 		try {
 			out = new PrintWriter(tmpDir + File.separator + "split_" + split.feature.name + "_" + splitPoint + ".txt");
 			out.println(splitScore);

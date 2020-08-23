@@ -134,6 +134,9 @@ public class InstancesReader {
 			}
 			String[] data = line.split(delimiter);
 			Instance instance = parseDenseInstance(data, ainfo, allowMV);
+			if (ainfo.groupCol != AttrInfo.GROUP_UNSET) {
+				instance.setGroupId(data[ainfo.groupCol]);
+			}
 			if (instance != null) {
 				instances.add(instance);
 			}

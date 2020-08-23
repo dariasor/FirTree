@@ -26,6 +26,9 @@ public class AttrInfo {
 	public HashMap<String, Integer> nameToId;	//defined for active attributes only (inactive don't have id)
 	public Set<String> leafNames;
 	
+	public static int GROUP_UNSET = -1;
+	public int groupCol = GROUP_UNSET;
+	
 	/**
 	 * Default constructor 
 	 */

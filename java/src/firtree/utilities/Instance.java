@@ -12,8 +12,6 @@ public class Instance extends mltk.core.Instance {
 	AttrInfo ainfoLeaf;
 	// Cache the previous prediction for an instance to speed up training
 	protected double prediction;
-	// Instances with the same group id are collectively called a query group
-	protected String groupId;
 	// Index in the list of all nodes in a FirTree model, but must be a leaf node's index
 	protected int nodeIndex = -1;
 	
@@ -52,13 +50,5 @@ public class Instance extends mltk.core.Instance {
 
 	public void setNodeIndex(int nodeIndex) {
 		this.nodeIndex = nodeIndex;
-	}
-
-	public String getGroupId() {
-		return groupId;
-	}
-
-	public void setGroupId(String groupId) {
-		this.groupId = groupId;
 	}
 }
