@@ -1204,12 +1204,21 @@ public class InteractionTreeLearnerGAMMC {
 			if (candidates.size() >= 3)
 				break;
 			String[] data = line.split("\\s+");
-			if(candType == null)
+			
+			// If split features are specified, do not consider features that are not split
+			if (ainfo.splitNames.size() > 0 && !ainfo.splitNames.contains(data[0])) {
+				timeStamp(String.format("Feature %s is not a split feature and excluded", data[0]));
+				continue;
+			}
+			
+			if (candType == null)
 				candType = data[1];
-			if(candType.compareTo(data[1]) == 0) {
+			
+			if (candType.compareTo(data[1]) == 0) {
 				if (ainfo.leafNames.contains(data[0])) {
-					timeStamp(String.format("Feature %s is excluded from candidates", data[0]));
+					timeStamp(String.format("Feature %s is a leaf feature and excluded", data[0]));
 				} else {
+					timeStamp(String.format("Feature %s (%s) is included", data[0], candType));
 					candidates.add(data[0]);
 				}
 			}
