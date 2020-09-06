@@ -171,6 +171,8 @@ public class FirTree {
 		// XW. If all parameter files exist, load all of the parameters
 		// XW. Parameters include intercept, coefficients, and constants on leaves
 		if (allExist) {
+			System.out.println("Load existing model parameters");
+			
 			// Load linear models and constants on FirTree leaves
 			const_val = new double[nodeN];
 			intercept_val = new double[nodeN];

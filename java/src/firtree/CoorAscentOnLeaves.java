@@ -68,7 +68,7 @@ public class CoorAscentOnLeaves {
 		long start = System.currentTimeMillis();
 
 		// XW. OLS is better than uniform in initializing parameters of CA
-		OrdLeastSquaresOnLeaves.main(args);
+		//OrdLeastSquaresOnLeaves.main(args);
 		
 		// Load attribute file
 		AttrInfo ainfo = AttributesReader.read(opts.attPath);
@@ -337,6 +337,8 @@ public class CoorAscentOnLeaves {
 			AttrInfo ainfo,
 			FirTree model
 			) throws Exception {
+		timeStamp("Scan data into rank lists");
+		
 		String dir = Paths.get(opts.logPath).getParent().toString();
 		Map<String, RankList> rankLists = new HashMap<>();
 		List<String> allLeaves = model.getAllLeaves();

@@ -100,9 +100,9 @@ public class OrdLeastSquaresOnLeaves {
 			
 			int col_num = model.nodeAttIdList.get(nodeIndex).size(); //col refers to the columns in the matrix, not in the data file
 
-			boolean isSubsample = true;
+			boolean willCrash = checkCrash(col_num, ainfo, opts, dataPath);
 			Set<String> groupIdSet = null;
-			if (isSubsample) {
+			if (willCrash) {
 				groupIdSet = subsample(col_num, ainfo, opts, dataPath);
 			}
 			
@@ -112,7 +112,7 @@ public class OrdLeastSquaresOnLeaves {
 			for(String line = br_dta.readLine(); line != null; line = br_dta.readLine()) {
 				String[] data = line.split("\t+");
 
-				if (isSubsample) {
+				if (willCrash) {
 					// Skip the group ids that are not subsampled, i.e., not included in the set
 					String groupId = data[ainfo.nameToCol.get(opts.group)];
 					if (! groupIdSet.contains(groupId))
@@ -278,6 +278,25 @@ public class OrdLeastSquaresOnLeaves {
 		return dataPaths;
 	}
 	
+	static boolean checkCrash(int nAtt, AttrInfo ainfo, Options opts, String dataPath) 
+			throws Exception {
+		/*// Crash that needs to look into org.netlib.lapack.Dgeqrf.dgeqrf(lapack.f)
+		int max = Integer.MAX_VALUE / (nAtt * opts.polyDegree + 1);
+		*///
+		// Use this magic number instead of using max integer value 2147483647
+		int max = 2147000000 / (nAtt * opts.polyDegree + 1);
+		
+		BufferedReader br = new BufferedReader(new FileReader(dataPath));
+		int num = 0;
+		while (br.readLine() != null) num ++;
+		br.close();
+		
+		if (num > max)
+			return true;
+		else
+			return false;
+	}
+
 	static Set<String> subsample(int nAtt, AttrInfo ainfo, Options opts, String dataPath) 
 			throws Exception {
 		Set<String> groupIdSet = new HashSet<String>();
