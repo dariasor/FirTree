@@ -30,10 +30,13 @@ import mltk.util.tuple.IntPair;
 public class CoorAscentOnLeaves {
 
 	static class Options {
-		// The following three arguments come from RegressionOnLeaves
-		@Argument(name = "-d", description = "model directory", required = true)
-		String dir = ""; //path up to FirTree/
+		// The following arguments come from OrdLeastSquaresOnLeaves
+		@Argument(name="-d", description="FirTree directory. Don't use this to specify a model", required=true)
+		String dir = ""; // Usually path up to "FirTree" inclusive
 
+		@Argument(name="-l", description="treelog.txt (cropped). Use this to specify a model", required=true)
+		String logPath = "";
+		
 		@Argument(name = "-r", description = "attribute file", required = true)
 		String attPath = "";
 
@@ -44,8 +47,8 @@ public class CoorAscentOnLeaves {
 		@Argument(name = "-g", description = "name of the attribute with the group id", required = true)
 		String group = "";
 		
-		@Argument(name = "-m", description = "Prefix of name of output parameter files (default: model)")
-		String modelPrefix = "model";
+		@Argument(name = "-m", description = "Prefix of name of output parameter files (default: ca)")
+		String modelPrefix = "ca";
 		
 		// This argument comes from InteractionTreeLearnerGAMMC
 		@Argument(name = "-c", description = "(gauc|ndcg) - metric to optimize (default: gauc)")
@@ -65,13 +68,21 @@ public class CoorAscentOnLeaves {
 		long start = System.currentTimeMillis();
 
 		// XW. OLS is better than uniform in initializing parameters of CA
-		RegressionOnLeaves.main(args);
+		OrdLeastSquaresOnLeaves.main(args);
 		
 		// Load attribute file
 		AttrInfo ainfo = AttributesReader.read(opts.attPath);
 		
 		// Load tree structure and initial parameter values
-		FirTree model = new FirTree(ainfo, opts.dir, opts.polyDegree, opts.modelPrefix);
+		FirTree model = new FirTree(ainfo, opts.logPath, opts.polyDegree, opts.modelPrefix);
+		for (int i = 0; i < model.nodeAttIdList.size(); i ++) {
+			for (int j = 0; j < model.nodeAttIdList.get(i).size(); j ++) {
+				if (model.nodeAttIdList.get(i).get(j) != model.lr_attr_ids.get(i).get(j)) {
+					System.err.printf("Incosistent attribute order between treelog.txt and parameter files\n");
+					System.exit(1);
+				}
+			}
+		}
 		
 		// Load training data
 		Map<String, RankList> rankLists = loadRankList(opts, ainfo, model);
@@ -104,9 +115,10 @@ public class CoorAscentOnLeaves {
 			FirTree model, 
 			Map<String, RankList> rankLists,
 			MetricScorer scorer
-			) {
+			) throws Exception {
 		// Create log directory and delete all previous log files
-		String logPath = opts.dir + "/CA" + opts.polyDegree + "_PLOTS";
+		String dir = Paths.get(opts.logPath).getParent().toString();
+		String logPath = dir + "/CA_" + opts.modelPrefix + "_y" + opts.polyDegree + "_PLOTS";
 		File logDir = new File(logPath);
 		if (! logDir.exists())
 			logDir.mkdirs();
@@ -240,7 +252,10 @@ public class CoorAscentOnLeaves {
 			if (gainTrain < minGainTrain) {
 				break;
 			}
-//			break;
+			
+			// Save model parameters at each iteration because training takes too long
+			model.save();
+//			break;			
 		} // while (true)
 	}
 		
@@ -322,18 +337,23 @@ public class CoorAscentOnLeaves {
 			AttrInfo ainfo,
 			FirTree model
 			) throws Exception {
+		String dir = Paths.get(opts.logPath).getParent().toString();
 		Map<String, RankList> rankLists = new HashMap<>();
 		List<String> allLeaves = model.getAllLeaves();
 		for (String leafName : allLeaves) {
-			String dataPath = Paths.get(opts.dir, "Node_" + leafName, "fir.dta").toString();
-			String attPath = Paths.get(opts.dir, "Node_" + leafName, "fir.fs.fs.attr").toString();
-			AttrInfo ainfoLeaf = AttributesReader.read(attPath);
+			String dataPath = Paths.get(dir, "Node_" + leafName, "fir.dta").toString();
+			Map<String, Integer> nameToId = new HashMap<>();
+			int leafIndex = model.nodeIndexes.get(leafName);
+			List<Integer> attIdList = model.nodeAttIdList.get(leafIndex);
+			for (int i = 0; i < attIdList.size(); i ++) {
+				nameToId.put(ainfo.idToName(attIdList.get(i)), i);
+			}
 			BufferedReader br = new BufferedReader(new FileReader(dataPath));
 			for (String line = br.readLine(); line != null; line = br.readLine()) {
 				String[] data = line.split("\t");
 				Instance instance = new Instance(
-						InstancesReader.parseDenseInstance(data, ainfoLeaf, false),
-						ainfoLeaf
+						InstancesReader.parseDenseInstance(data, ainfo, attIdList, false),
+						nameToId
 						);
 				String groupId = data[ainfo.nameToCol.get(opts.group)];
 				instance.setGroupId(groupId);

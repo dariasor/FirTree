@@ -5,6 +5,8 @@ import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -20,7 +22,9 @@ public class FirTree {
 
 	private enum NodeType { SPLIT, MODEL, CONST }
 
-	private String dir;
+	public String dir;
+	public List<List<Integer>> nodeAttIdList;
+	
 	private AttrInfo ainfo;
 	private int polyDegree; //degree of polynomials in the leaf models. 0 means that the leaf models are not yet trained.
 	private String modelPrefix;
@@ -33,7 +37,7 @@ public class FirTree {
 	
 	// XW. Outer: Number of all nodes of the three NodeType
 	// XW. Inner: Number of attributes used by a node
-	private ArrayList<ArrayList<Integer>> lr_attr_ids;
+	public ArrayList<ArrayList<Integer>> lr_attr_ids;
 	
 	// XW. Trainable parameters
 	private ArrayList<ArrayList<ArrayList<Double>>> lr_coefs; 
@@ -49,25 +53,75 @@ public class FirTree {
 	private double[] const_val;
 	
 	// XW. Map names to indexes of node_name for fast index look up
-	private Map<String, Integer> nodeIndexes;
+	public Map<String, Integer> nodeIndexes;
 
 	// XW
 	private int INTERCEPT = -1;
 	
-	public FirTree(AttrInfo ainfo, String dir, int polyDegree, String modelPrefix) 
+	public FirTree(AttrInfo ainfo, String logPath, int polyDegree, String modelPrefix) 
 			throws Exception {
-		this.dir = dir;
 		this.ainfo = ainfo;
 		this.polyDegree = polyDegree;
 		this.modelPrefix = modelPrefix;
+		
+		this.dir = Paths.get(logPath).getParent().toString();
 		
 		node_name = new ArrayList<String>();
 		node_type = new ArrayList<NodeType>();
 		split_attr_id = new ArrayList<Integer>();
 		split_val = new ArrayList<Double>();
+		
+		nodeAttIdList = new ArrayList<List<Integer>>();
 
 		// Parse the treelog.txt file in the directory to a FirTree model
-		BufferedReader treelog = new BufferedReader(new FileReader(dir + "/treelog.txt"), 65535);
+		String strLog = new String(Files.readAllBytes(Paths.get(logPath)));
+		String[] strNodes = strLog.split("\n\n");
+		for (String strNode : strNodes) {
+			List<Integer> attIdList = new ArrayList<Integer>();
+			
+			String[] lines = strNode.strip().split("\n");
+
+			String first = lines[0].trim();
+			if (! first.matches("Root(.*)")) {
+				System.err.printf("Error: %s is not a valid node name\n", first);
+				System.exit(1);
+			}
+			node_name.add(first);
+			
+			String last = lines[lines.length - 1].trim();
+			if (last.matches("Constant leaf(.*)")) {
+				node_type.add(NodeType.CONST);
+				split_attr_id.add(-1);
+				split_val.add(Double.POSITIVE_INFINITY);
+			} else if (last.matches("Regression leaf(.*)")) {
+				node_type.add(NodeType.MODEL);
+				split_attr_id.add(-1);
+				split_val.add(Double.POSITIVE_INFINITY);
+				
+				if (lines[1].matches("Core features(.*)")) {
+					for (int i = 2; i < lines.length; i ++) {
+						if (! lines[i].startsWith("\t")) {
+							break;
+						}
+						attIdList.add(ainfo.nameToId.get(lines[i].strip()));
+					}
+				} else {
+					System.err.printf("Error: no core features for %s\n", first);
+					System.exit(1);
+				}
+			} else if (last.matches("Best split(.*)")) {
+				node_type.add(NodeType.SPLIT);
+				split_attr_id.add(ainfo.nameToId.get(lines[lines.length - 2].split(": ")[1]));
+				split_val.add(Double.parseDouble(last.split(": ")[1]));
+			} else {
+				System.err.printf("Error: can't parse node type %s\n", last);
+				System.exit(1);
+			}
+			
+			nodeAttIdList.add(attIdList);
+		}
+		/*//
+		BufferedReader treelog = new BufferedReader(new FileReader(logPath), 65535);
 		String line_tree = treelog.readLine();
 		while(line_tree != null) {
 			if(line_tree.matches("Root(.*)")) {
@@ -93,6 +147,7 @@ public class FirTree {
 			line_tree = treelog.readLine();
 		}
 		treelog.close();
+		*///
 		nodeN = node_name.size();
 		
 		// XW. Build map from names to indexes of node_name
@@ -812,7 +867,7 @@ public class FirTree {
 	private String getParamPath(int nodeIndex) {
 		String paramPath = dir + "/Node_" + node_name.get(nodeIndex) + "/" + modelPrefix;
 		if (node_type.get(nodeIndex) == NodeType.MODEL) {
-			paramPath += "_polydegree_" + polyDegree + ".txt";
+			paramPath += "_y" + polyDegree + ".txt";
 		} else if (node_type.get(nodeIndex) == NodeType.CONST) {
 			paramPath += "_const.txt";
 		} else {

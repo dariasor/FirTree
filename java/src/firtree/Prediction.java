@@ -16,8 +16,8 @@ import mltk.core.io.AttributesReader;
 public class Prediction {
 	
 	static class Options {
-		@Argument(name = "-d", description = "model directory", required = true)
-		String dir = ""; //usually path up to "FirTree" inclusive
+		@Argument(name="-l", description="treelog.txt (cropped). Use this to specify a model", required=true)
+		String logPath = "";
 		
 		@Argument(name = "-r", description = "attribute file", required = true)
 		String attPath = "";
@@ -48,7 +48,7 @@ public class Prediction {
 		long start = System.currentTimeMillis();
 		timeStamp("Load model");
 		AttrInfo ainfo = AttributesReader.read(opts.attPath);
-		FirTree model = new FirTree(ainfo, opts.dir, opts.polyDegree, opts.modelPrefix);
+		FirTree model = new FirTree(ainfo, opts.logPath, opts.polyDegree, opts.modelPrefix);
 
 		// Load test data and predict
 		timeStamp("Load data and generate predictions");

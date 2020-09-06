@@ -1,5 +1,7 @@
 package firtree.utilities;
 
+import java.util.Map;
+
 import mltk.core.io.AttrInfo;
 
 /**
@@ -9,7 +11,7 @@ import mltk.core.io.AttrInfo;
  */
 public class Instance extends mltk.core.Instance {
 
-	AttrInfo ainfoLeaf;
+	Map<String, Integer> nameToId;
 	// Cache the previous prediction for an instance to speed up training
 	protected double prediction;
 	// Instances with the same group id are collectively called a query group
@@ -22,13 +24,13 @@ public class Instance extends mltk.core.Instance {
 		super(target);
 	}
 	
-	public Instance(mltk.core.Instance instance, AttrInfo ainfoLeaf) {
+	public Instance(mltk.core.Instance instance, Map<String, Integer> nameToId) {
 		super(instance);
-		this.ainfoLeaf = ainfoLeaf;
+		this.nameToId = nameToId;
 	}
 	
 	public int getAttId(String attName) {
-		return ainfoLeaf.nameToId.get(attName);
+		return nameToId.get(attName);
 	}
 	
 	public boolean isIndexed() {
