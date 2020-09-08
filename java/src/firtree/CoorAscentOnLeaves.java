@@ -3,7 +3,12 @@ package firtree;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -78,10 +83,33 @@ public class CoorAscentOnLeaves {
 		for (int i = 0; i < model.nodeAttIdList.size(); i ++) {
 			for (int j = 0; j < model.nodeAttIdList.get(i).size(); j ++) {
 				if (model.nodeAttIdList.get(i).get(j) != model.lr_attr_ids.get(i).get(j)) {
-					System.err.printf("Incosistent attribute order between treelog.txt and parameter files\n");
+					System.err.printf("Incosistent attribute order between treelog.txt and parameter files %d %d\n",
+							model.nodeAttIdList.get(i).get(j), model.lr_attr_ids.get(i).get(j));
+					System.err.printf("%d %d %d -> %s\n", i, j, model.nodeAttIdList.get(i).get(j), ainfo.idToName(model.nodeAttIdList.get(i).get(j)));
+					System.err.printf("%d %d %d -> %s\n", i, j, model.lr_attr_ids.get(i).get(j), ainfo.idToName(model.lr_attr_ids.get(i).get(j)));
 					System.exit(1);
 				}
 			}
+		}
+		
+		List<String> modelLeaves = model.getRegressionLeaves();
+		
+		// Reconstruct a cropped FirTree from treelog txt file
+		for (String leaf : modelLeaves) {
+		    File dir = new File(getNodeDir(model.dir, leaf));
+		    if (! dir.exists()) {
+		    	dir.mkdirs();
+		    }
+			
+			Path outPath = Paths.get(dir.getAbsolutePath(), "fir.dta");
+			Files.deleteIfExists(outPath);
+			List<Path> inPaths = getDataPaths(opts.dir, leaf);
+		    // Join files (lines)
+		    for (Path inPath : inPaths) {
+				System.out.printf("Copy from %s to %s\n", inPath, outPath);
+		        List<String> lines = Files.readAllLines(inPath, StandardCharsets.UTF_8);
+		        Files.write(outPath, lines, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+		    }
 		}
 		
 		// Load training data
@@ -105,10 +133,18 @@ public class CoorAscentOnLeaves {
 	// The hyper-parameters of training model parameters by coordinate ascent
 	// delta = [ deltaUnit * deltaBase^0, ..., deltaUnit * deltaBase^deltaMaxPower ]
 	public static double deltaUnit = 0.001;
+	public static double deltaRatio = 0.01;
+	
+	// (1 + 0.01 * (pow(2.0, 10 + 1) - 1)) = 21.5
+	/*//
 	public static double deltaBase = 2.0;
 	public static double deltaMaxPower = 10; // A smaller value speeds up training
 	public static double minGainTrain = 0.0001; // A larger value speeds up training
-	public static double deltaRatio = 0.01;
+	*///
+	// (1 + 0.01 * (pow(1.1, 80 + 1) - 1)) = 23.5
+	public static double deltaBase = 1.1;
+	public static double deltaMaxPower = 80; // A smaller value speeds up training
+	public static double minGainTrain = 0.00001; // A larger value speeds up training
 	
 	protected static void fineTune(
 			Options opts,
@@ -387,6 +423,38 @@ public class CoorAscentOnLeaves {
 		for (RankList rankList : rankLists.values())
 			rankList.setWeight();
 		return rankLists;
+	}
+	
+	static String getNodeDir(String dir, String node) {
+		return Paths.get(dir, "Node_" + node).toString();
+	}
+	
+	static List<Path> getDataPaths(String dir, String node) {
+		List<Path> dataPaths = new ArrayList<Path>();
+		String left = getNodeDir(dir, node) + "_L";
+		String right = getNodeDir(dir, node) + "_R";
+		if (new File(left).exists()) {
+			if (new File(right).exists()) {
+				dataPaths.addAll(getDataPaths(dir, node + "_L"));
+				dataPaths.addAll(getDataPaths(dir, node + "_R"));
+			} else {
+				System.err.printf("%s does not exist\n", right);
+				System.exit(1);
+			}
+		} else {
+			if (new File(right).exists()) {
+				System.err.printf("%s does not exist\n", left);
+				System.exit(1);
+			} else {
+				Path dataPath = Paths.get(getNodeDir(dir, node), "fir.dta");
+				if (! new File(dataPath.toString()).exists()) {
+					System.err.printf("%s does not exist\n", dataPath);
+					System.exit(1);
+				}
+				dataPaths.add(dataPath);
+			}
+		}
+		return dataPaths;
 	}
 	
 	static void timeStamp(String msg) {
