@@ -6,6 +6,11 @@
 package firtree;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.util.*;
 
 import mltk.cmdline.Argument;
@@ -14,12 +19,14 @@ import mltk.core.io.AttrInfo;
 import mltk.core.io.AttributesReader;
 import smile.regression.*;
 
-@Deprecated
-public class RegressionOnLeaves {
+public class OrdLeastSquaresOnLeaves {
 
 	static class Options {
-		@Argument(name = "-d", description = "model directory", required = true)
-		String dir = ""; //path up to FirTree/
+		@Argument(name="-d", description="FirTree directory. Don't use this to specify a model", required=true)
+		String dir = ""; // Usually path up to "FirTree" inclusive
+
+		@Argument(name="-l", description="treelog.txt (cropped). Use this to specify a model", required=true)
+		String logPath = "";
 
 		@Argument(name = "-r", description = "attribute file", required = true)
 		String attPath = "";
@@ -27,18 +34,18 @@ public class RegressionOnLeaves {
 		@Argument(name = "-y", description = "polynomial degree")
 		int polyDegree = 2;
 		
-		// The group id is used for subsampling
-		@Argument(name = "-g", description = "name of the attribute with the group id", required = true)
+		// The group id is used for subsampling if necessary
+		@Argument(name = "-g", description = "name of the attribute with the group id")
 		String group = "";
 		
-		@Argument(name = "-m", description = "Prefix of name of output parameter files (default: model)")
-		String modelPrefix = "model";
+		@Argument(name = "-m", description = "Prefix of name of output parameter files (default: ols)")
+		String modelPrefix = "ols";
 	}
 
 
 	public static void main(String[] args) throws Exception {
 		Options opts = new Options();
-		CmdLineParser parser = new CmdLineParser(RegressionOnLeaves.class, opts);
+		CmdLineParser parser = new CmdLineParser(OrdLeastSquaresOnLeaves.class, opts);
 		try {
 			parser.parse(args);
 		} catch (IllegalArgumentException e) {
@@ -49,12 +56,46 @@ public class RegressionOnLeaves {
 		long start = System.currentTimeMillis();
 
 		//Load attrFile and tree structure.
-		
 		timeStamp("Load attrFile");
 		AttrInfo ainfo = AttributesReader.read(opts.attPath);
-		FirTree model = new FirTree(ainfo, opts.dir, opts.polyDegree, opts.modelPrefix);
+		FirTree model = new FirTree(ainfo, opts.logPath, opts.polyDegree, opts.modelPrefix);
 		ArrayList<String> leavesModel = model.getRegressionLeaves();
 		ArrayList<String> leavesConst = model.getConstLeaves();
+		
+		// Reconstruct a cropped FirTree from treelog txt file
+		for (String leaf : leavesModel) {
+		    File dir = new File(getNodeDir(model.dir, leaf));
+		    if (! dir.exists()) {
+		    	dir.mkdirs();
+		    }
+			
+			Path outPath = Paths.get(dir.getAbsolutePath(), "fir.dta");
+			if (Files.exists(outPath)) {
+				timeStamp(String.format("Data exists in %s", outPath));
+			} else {
+				List<Path> inPaths = getDataPaths(opts.dir, leaf);
+			    // Join files (lines)
+			    for (Path inPath : inPaths) {
+					timeStamp(String.format("Copy from %s to %s", inPath, outPath));
+			        List<String> lines = Files.readAllLines(inPath, StandardCharsets.UTF_8);
+			        Files.write(outPath, lines, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+			    }
+			}
+		}
+		
+		for(int i_leaf = 0; i_leaf < leavesModel.size(); i_leaf++){
+			String leafName = leavesModel.get(i_leaf);
+			int nodeIndex = model.nodeIndexes.get(leafName);
+			if (model.lr_attr_ids.size() > 0) {
+				for (int j = 0; j < model.lr_attr_ids.get(nodeIndex).size(); j ++) {
+					int id = model.lr_attr_ids.get(nodeIndex).get(j);
+					if (id != model.nodeAttIdList.get(nodeIndex).get(j)) {
+						System.err.println("Variables lr_attr_ids and nodeAttIdList are inconsistent");
+						System.exit(1);
+					}
+				}				
+			}
+		}
 		
 		// Train model on each regression leaf
 		timeStamp("-------------- Train model on each regression leaf --------------");
@@ -62,21 +103,25 @@ public class RegressionOnLeaves {
 		for(int i_leaf = 0; i_leaf < leavesModel.size(); i_leaf++){
 			String leafName = leavesModel.get(i_leaf);
 			
-			String dataNodePath = opts.dir + "/Node_" + leafName;
+			int nodeIndex = model.nodeIndexes.get(leafName);
+			
 			System.out.println("------------Processing leaf "+ leafName + "------------");
 
 			long start_load = System.currentTimeMillis();
 			timeStamp("Scan data");
 
-			AttrInfo ainfo_leaf = AttributesReader.read(dataNodePath + "/fir.fs.fs.attr");
-
-			String dataPath = dataNodePath + "/fir.dta";
+			String dataPath = getNodeDir(model.dir, leafName).toString() + "/fir.dta";
 			// read the data, save labels and values of selected features
 			BufferedReader br_dta = new BufferedReader(new FileReader(dataPath));
 
-			int col_num = ainfo_leaf.attributes.size(); //col refers to the columns in the matrix, not in the data file
+			
+			int col_num = model.nodeAttIdList.get(nodeIndex).size(); //col refers to the columns in the matrix, not in the data file
 
-			Set<String> groupIdSet = subsample(ainfo_leaf, opts, dataPath);
+			boolean crash = checkCrash(col_num, ainfo, opts, dataPath);
+			Set<String> groupIdSet = null;
+			if (crash) {
+				groupIdSet = subsample(col_num, ainfo, opts, dataPath);
+			}
 			
 			List<List<Double>> xMat_arraylist = new ArrayList<List<Double>>(); //dynamic memory for temp data storage - features
 			ArrayList<Double> y_double_arraylist = new ArrayList<Double>(); //dynamic memory for temp data storage - labels
@@ -84,15 +129,19 @@ public class RegressionOnLeaves {
 			for(String line = br_dta.readLine(); line != null; line = br_dta.readLine()) {
 				String[] data = line.split("\t+");
 
-				// Skip the group ids that are not subsampled, i.e., not included in the set
-				String groupId = data[ainfo_leaf.nameToCol.get(opts.group)];
-				if (! groupIdSet.contains(groupId))
-					continue;
+				if (crash) {
+					// Skip the group ids that are not subsampled, i.e., not included in the set
+					String groupId = data[ainfo.nameToCol.get(opts.group)];
+					if (! groupIdSet.contains(groupId))
+						continue;
+				}
 				
 				y_double_arraylist.add(Double.parseDouble(data[ainfo.getClsCol()]));
 				ArrayList<Double> current_selected_attr = new ArrayList<Double>();
-				for(int j = 0; j < col_num; j++){
-					current_selected_attr.add(Double.parseDouble(data[ainfo_leaf.attributes.get(j).getColumn()]));
+				for(int attIndex = 0; attIndex < col_num; attIndex ++){
+					int id = model.nodeAttIdList.get(nodeIndex).get(attIndex);
+					double value = Double.parseDouble(data[ainfo.idToCol(id)]);
+					current_selected_attr.add(model.truncate(nodeIndex, attIndex, value));
 				}
 				xMat_arraylist.add(current_selected_attr);
 			}
@@ -158,7 +207,8 @@ public class RegressionOnLeaves {
 			modelTrans_out.write("intercept\t" + ols_trans_intercept + "\n");
 
 			for (int i_attr = 0; i_attr < col_num; i_attr++) {
-				modelTrans_out.write(ainfo_leaf.idToName(i_attr) + "\t");
+				int id = model.nodeAttIdList.get(nodeIndex).get(i_attr);
+				modelTrans_out.write(ainfo.idToName(id) + "\t");
 				for(int i_poly = 0; i_poly < opts.polyDegree; i_poly++){
 					modelTrans_out.write(ols_trans_coef[i_attr * opts.polyDegree + i_poly] + "\t" );
 				}
@@ -180,7 +230,7 @@ public class RegressionOnLeaves {
 		for(int i_const = 0; i_const < leavesConst.size(); i_const++){
 			String leafName = leavesConst.get(i_const);
 
-			String dataNodePath = opts.dir + "/Node_" + leafName;
+			String dataNodePath = model.dir + "/Node_" + leafName;
 			System.out.println("------------Processing leaf " + leafName + "------------");
 
 			// read dta file, only need to read the target column
@@ -209,20 +259,71 @@ public class RegressionOnLeaves {
 			const_out.flush();
 			const_out.close();
 		}
-
+		
 		long end = System.currentTimeMillis();
 		System.out.println("Finished all in " + (end - start) / 1000.0 + " (s).");
 	}
 	
-	static Set<String> subsample(AttrInfo ainfo, Options opts, String dataPath) 
+	static String getNodeDir(String dir, String node) {
+		return Paths.get(dir, "Node_" + node).toString();
+	}
+	
+	static List<Path> getDataPaths(String dir, String node) {
+		List<Path> dataPaths = new ArrayList<Path>();
+		String left = getNodeDir(dir, node) + "_L";
+		String right = getNodeDir(dir, node) + "_R";
+		if (new File(left).exists()) {
+			if (new File(right).exists()) {
+				dataPaths.addAll(getDataPaths(dir, node + "_L"));
+				dataPaths.addAll(getDataPaths(dir, node + "_R"));
+			} else {
+				System.err.printf("%s does not exist\n", right);
+				System.exit(1);
+			}
+		} else {
+			if (new File(right).exists()) {
+				System.err.printf("%s does not exist\n", left);
+				System.exit(1);
+			} else {
+				Path dataPath = Paths.get(getNodeDir(dir, node), "fir.dta");
+				if (! new File(dataPath.toString()).exists()) {
+					System.err.printf("%s does not exist\n", dataPath);
+					System.exit(1);
+				}
+				dataPaths.add(dataPath);
+			}
+		}
+		return dataPaths;
+	}
+	
+	static boolean checkCrash(int nAtt, AttrInfo ainfo, Options opts, String dataPath) 
+			throws Exception {
+		/*// Crash that needs to look into org.netlib.lapack.Dgeqrf.dgeqrf(lapack.f)
+		int max = Integer.MAX_VALUE / (nAtt * opts.polyDegree + 1);
+		*///
+		// Use this magic number instead of using max integer value 2147483647
+		int max = 2147000000 / (nAtt * opts.polyDegree + 1);
+		
+		BufferedReader br = new BufferedReader(new FileReader(dataPath));
+		int num = 0;
+		while (br.readLine() != null) num ++;
+		br.close();
+		
+		if (num > max)
+			return true;
+		else
+			return false;
+	}
+
+	static Set<String> subsample(int nAtt, AttrInfo ainfo, Options opts, String dataPath) 
 			throws Exception {
 		Set<String> groupIdSet = new HashSet<String>();
 		
 		/*// Crash that needs to look into org.netlib.lapack.Dgeqrf.dgeqrf(lapack.f)
-		int max = Integer.MAX_VALUE / (ainfo.attributes.size() * opts.polyDegree + 1);
+		int max = Integer.MAX_VALUE / (nAtt * opts.polyDegree + 1);
 		*///
 		// Use this magic number instead of using max integer value 2147483647
-		int max = 2147000000 / (ainfo.attributes.size() * opts.polyDegree + 1);
+		int max = 2147000000 / (nAtt * opts.polyDegree + 1);
 		
 		Map<String, Integer> groupSizes = new HashMap<String, Integer>();
 		BufferedReader br = new BufferedReader(new FileReader(dataPath));

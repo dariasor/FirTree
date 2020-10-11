@@ -3,7 +3,12 @@ package firtree;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -30,10 +35,13 @@ import mltk.util.tuple.IntPair;
 public class CoorAscentOnLeaves {
 
 	static class Options {
-		// The following three arguments come from RegressionOnLeaves
-		@Argument(name = "-d", description = "model directory", required = true)
-		String dir = ""; //path up to FirTree/
+		// The following arguments come from OrdLeastSquaresOnLeaves
+		@Argument(name="-d", description="FirTree directory. Don't use this to specify a model", required=true)
+		String dir = ""; // Usually path up to "FirTree" inclusive
 
+		@Argument(name="-l", description="treelog.txt (cropped). Use this to specify a model", required=true)
+		String logPath = "";
+		
 		@Argument(name = "-r", description = "attribute file", required = true)
 		String attPath = "";
 
@@ -44,8 +52,8 @@ public class CoorAscentOnLeaves {
 		@Argument(name = "-g", description = "name of the attribute with the group id", required = true)
 		String group = "";
 		
-		@Argument(name = "-m", description = "Prefix of name of output parameter files (default: model)")
-		String modelPrefix = "model";
+		@Argument(name = "-m", description = "Prefix of name of output parameter files (default: ca)")
+		String modelPrefix = "ca";
 		
 		// This argument comes from InteractionTreeLearnerGAMMC
 		@Argument(name = "-c", description = "(gauc|ndcg) - metric to optimize (default: gauc)")
@@ -65,13 +73,47 @@ public class CoorAscentOnLeaves {
 		long start = System.currentTimeMillis();
 
 		// XW. OLS is better than uniform in initializing parameters of CA
-		RegressionOnLeaves.main(args);
+		OrdLeastSquaresOnLeaves.main(args);
 		
 		// Load attribute file
 		AttrInfo ainfo = AttributesReader.read(opts.attPath);
 		
 		// Load tree structure and initial parameter values
-		FirTree model = new FirTree(ainfo, opts.dir, opts.polyDegree, opts.modelPrefix);
+		FirTree model = new FirTree(ainfo, opts.logPath, opts.polyDegree, opts.modelPrefix);
+		for (int i = 0; i < model.nodeAttIdList.size(); i ++) {
+			for (int j = 0; j < model.nodeAttIdList.get(i).size(); j ++) {
+				if (model.nodeAttIdList.get(i).get(j) != model.lr_attr_ids.get(i).get(j)) {
+					System.err.printf("Incosistent attribute order between treelog.txt and parameter files %d %d\n",
+							model.nodeAttIdList.get(i).get(j), model.lr_attr_ids.get(i).get(j));
+					System.err.printf("%d %d %d -> %s\n", i, j, model.nodeAttIdList.get(i).get(j), ainfo.idToName(model.nodeAttIdList.get(i).get(j)));
+					System.err.printf("%d %d %d -> %s\n", i, j, model.lr_attr_ids.get(i).get(j), ainfo.idToName(model.lr_attr_ids.get(i).get(j)));
+					System.exit(1);
+				}
+			}
+		}
+		
+		List<String> modelLeaves = model.getRegressionLeaves();
+		
+		// Reconstruct a cropped FirTree from treelog txt file
+		for (String leaf : modelLeaves) {
+		    File dir = new File(getNodeDir(model.dir, leaf));
+		    if (! dir.exists()) {
+		    	dir.mkdirs();
+		    }
+			
+			Path outPath = Paths.get(dir.getAbsolutePath(), "fir.dta");
+			if (Files.exists(outPath)) {
+				timeStamp(String.format("Data exists in %s", outPath));
+			} else {
+				List<Path> inPaths = getDataPaths(opts.dir, leaf);
+			    // Join files (lines)
+			    for (Path inPath : inPaths) {
+					System.out.printf("Copy from %s to %s\n", inPath, outPath);
+			        List<String> lines = Files.readAllLines(inPath, StandardCharsets.UTF_8);
+			        Files.write(outPath, lines, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+			    }
+			}
+		}
 		
 		// Load training data
 		Map<String, RankList> rankLists = loadRankList(opts, ainfo, model);
@@ -94,25 +136,36 @@ public class CoorAscentOnLeaves {
 	// The hyper-parameters of training model parameters by coordinate ascent
 	// delta = [ deltaUnit * deltaBase^0, ..., deltaUnit * deltaBase^deltaMaxPower ]
 	public static double deltaUnit = 0.001;
+	public static double deltaRatio = 0.01;
+	
+	// (1 + 0.01 * (pow(2.0, 10 + 1) - 1)) = 21.5
+	/*//
 	public static double deltaBase = 2.0;
 	public static double deltaMaxPower = 10; // A smaller value speeds up training
 	public static double minGainTrain = 0.0001; // A larger value speeds up training
-	public static double deltaRatio = 0.01;
+	*///
+	// (1 + 0.01 * (pow(1.1, 80 + 1) - 1)) = 23.5
+	public static double deltaBase = 1.1;
+	public static double deltaMaxPower = 80; // A smaller value speeds up training
+	public static double minGainTrain = 0.00001; // A larger value speeds up training
 	
 	protected static void fineTune(
 			Options opts,
 			FirTree model, 
 			Map<String, RankList> rankLists,
 			MetricScorer scorer
-			) {
+			) throws Exception {
 		// Create log directory and delete all previous log files
-		String logPath = opts.dir + "/CA" + opts.polyDegree + "_PLOTS";
+		String dir = Paths.get(opts.logPath).getParent().toString();
+		String logPath = dir + "/CA_" + opts.modelPrefix + "_y" + opts.polyDegree + "_PLOTS";
 		File logDir = new File(logPath);
-		if (! logDir.exists())
+		if (! logDir.exists()) {
 			logDir.mkdirs();
-		else 
-			for (File logFile : logDir.listFiles())
+		} else {
+			for (File logFile : logDir.listFiles()) {
 				logFile.delete();
+			}
+		}
 		
 		int nIter = 0;
 		while (true) {
@@ -240,7 +293,10 @@ public class CoorAscentOnLeaves {
 			if (gainTrain < minGainTrain) {
 				break;
 			}
-//			break;
+			
+			// Save model parameters at each iteration because training takes too long
+			model.save();
+//			break;			
 		} // while (true)
 	}
 		
@@ -287,8 +343,9 @@ public class CoorAscentOnLeaves {
 		double total = 0;
 		double weight = 0;
 		for (RankList rankList : rankLists.values()) {
-			for (Instance instance : rankList.getInstances())
+			for (Instance instance : rankList.getInstances()) {
 				model.predict(instance);
+			}
 			// Set is easily forgot
 			rankList.setScore(scorer.score(rankList));
 			double score = rankList.getScore();
@@ -322,18 +379,25 @@ public class CoorAscentOnLeaves {
 			AttrInfo ainfo,
 			FirTree model
 			) throws Exception {
+		timeStamp("Scan data into rank lists");
+		
+		String dir = Paths.get(opts.logPath).getParent().toString();
 		Map<String, RankList> rankLists = new HashMap<>();
 		List<String> allLeaves = model.getAllLeaves();
 		for (String leafName : allLeaves) {
-			String dataPath = Paths.get(opts.dir, "Node_" + leafName, "fir.dta").toString();
-			String attPath = Paths.get(opts.dir, "Node_" + leafName, "fir.fs.fs.attr").toString();
-			AttrInfo ainfoLeaf = AttributesReader.read(attPath);
+			String dataPath = Paths.get(dir, "Node_" + leafName, "fir.dta").toString();
+			Map<String, Integer> nameToId = new HashMap<>();
+			int leafIndex = model.nodeIndexes.get(leafName);
+			List<Integer> attIdList = model.nodeAttIdList.get(leafIndex);
+			for (int i = 0; i < attIdList.size(); i ++) {
+				nameToId.put(ainfo.idToName(attIdList.get(i)), i);
+			}
 			BufferedReader br = new BufferedReader(new FileReader(dataPath));
 			for (String line = br.readLine(); line != null; line = br.readLine()) {
 				String[] data = line.split("\t");
 				Instance instance = new Instance(
-						InstancesReader.parseDenseInstance(data, ainfoLeaf, false),
-						ainfoLeaf
+						InstancesReader.parseDenseInstance(data, ainfo, attIdList, false),
+						nameToId
 						);
 				String groupId = data[ainfo.nameToCol.get(opts.group)];
 				instance.setGroupId(groupId);
@@ -365,6 +429,38 @@ public class CoorAscentOnLeaves {
 		for (RankList rankList : rankLists.values())
 			rankList.setWeight();
 		return rankLists;
+	}
+	
+	static String getNodeDir(String dir, String node) {
+		return Paths.get(dir, "Node_" + node).toString();
+	}
+	
+	static List<Path> getDataPaths(String dir, String node) {
+		List<Path> dataPaths = new ArrayList<Path>();
+		String left = getNodeDir(dir, node) + "_L";
+		String right = getNodeDir(dir, node) + "_R";
+		if (new File(left).exists()) {
+			if (new File(right).exists()) {
+				dataPaths.addAll(getDataPaths(dir, node + "_L"));
+				dataPaths.addAll(getDataPaths(dir, node + "_R"));
+			} else {
+				System.err.printf("%s does not exist\n", right);
+				System.exit(1);
+			}
+		} else {
+			if (new File(right).exists()) {
+				System.err.printf("%s does not exist\n", left);
+				System.exit(1);
+			} else {
+				Path dataPath = Paths.get(getNodeDir(dir, node), "fir.dta");
+				if (! new File(dataPath.toString()).exists()) {
+					System.err.printf("%s does not exist\n", dataPath);
+					System.exit(1);
+				}
+				dataPaths.add(dataPath);
+			}
+		}
+		return dataPaths;
 	}
 	
 	static void timeStamp(String msg) {
