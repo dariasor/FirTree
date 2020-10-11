@@ -14,6 +14,7 @@ import mltk.core.io.AttrInfo;
 import mltk.core.io.AttributesReader;
 import smile.regression.*;
 
+@Deprecated
 public class RegressionOnLeaves {
 
 	static class Options {

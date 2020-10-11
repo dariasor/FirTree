@@ -70,14 +70,31 @@ public class OrdLeastSquaresOnLeaves {
 		    }
 			
 			Path outPath = Paths.get(dir.getAbsolutePath(), "fir.dta");
-			Files.deleteIfExists(outPath);
-			List<Path> inPaths = getDataPaths(opts.dir, leaf);
-		    // Join files (lines)
-		    for (Path inPath : inPaths) {
-				System.out.printf("Copy from %s to %s\n", inPath, outPath);
-		        List<String> lines = Files.readAllLines(inPath, StandardCharsets.UTF_8);
-		        Files.write(outPath, lines, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-		    }
+			if (Files.exists(outPath)) {
+				timeStamp(String.format("Data exists in %s", outPath));
+			} else {
+				List<Path> inPaths = getDataPaths(opts.dir, leaf);
+			    // Join files (lines)
+			    for (Path inPath : inPaths) {
+					timeStamp(String.format("Copy from %s to %s", inPath, outPath));
+			        List<String> lines = Files.readAllLines(inPath, StandardCharsets.UTF_8);
+			        Files.write(outPath, lines, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+			    }
+			}
+		}
+		
+		for(int i_leaf = 0; i_leaf < leavesModel.size(); i_leaf++){
+			String leafName = leavesModel.get(i_leaf);
+			int nodeIndex = model.nodeIndexes.get(leafName);
+			if (model.lr_attr_ids.size() > 0) {
+				for (int j = 0; j < model.lr_attr_ids.get(nodeIndex).size(); j ++) {
+					int id = model.lr_attr_ids.get(nodeIndex).get(j);
+					if (id != model.nodeAttIdList.get(nodeIndex).get(j)) {
+						System.err.println("Variables lr_attr_ids and nodeAttIdList are inconsistent");
+						System.exit(1);
+					}
+				}				
+			}
 		}
 		
 		// Train model on each regression leaf
@@ -100,9 +117,9 @@ public class OrdLeastSquaresOnLeaves {
 			
 			int col_num = model.nodeAttIdList.get(nodeIndex).size(); //col refers to the columns in the matrix, not in the data file
 
-			boolean willCrash = checkCrash(col_num, ainfo, opts, dataPath);
+			boolean crash = checkCrash(col_num, ainfo, opts, dataPath);
 			Set<String> groupIdSet = null;
-			if (willCrash) {
+			if (crash) {
 				groupIdSet = subsample(col_num, ainfo, opts, dataPath);
 			}
 			
@@ -112,7 +129,7 @@ public class OrdLeastSquaresOnLeaves {
 			for(String line = br_dta.readLine(); line != null; line = br_dta.readLine()) {
 				String[] data = line.split("\t+");
 
-				if (willCrash) {
+				if (crash) {
 					// Skip the group ids that are not subsampled, i.e., not included in the set
 					String groupId = data[ainfo.nameToCol.get(opts.group)];
 					if (! groupIdSet.contains(groupId))
@@ -121,9 +138,10 @@ public class OrdLeastSquaresOnLeaves {
 				
 				y_double_arraylist.add(Double.parseDouble(data[ainfo.getClsCol()]));
 				ArrayList<Double> current_selected_attr = new ArrayList<Double>();
-				for(int j = 0; j < col_num; j++){
-					int id = model.nodeAttIdList.get(nodeIndex).get(j);
-					current_selected_attr.add(Double.parseDouble(data[ainfo.idToCol(id)]));
+				for(int attIndex = 0; attIndex < col_num; attIndex ++){
+					int id = model.nodeAttIdList.get(nodeIndex).get(attIndex);
+					double value = Double.parseDouble(data[ainfo.idToCol(id)]);
+					current_selected_attr.add(model.truncate(nodeIndex, attIndex, value));
 				}
 				xMat_arraylist.add(current_selected_attr);
 			}

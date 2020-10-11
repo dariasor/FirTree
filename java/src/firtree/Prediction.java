@@ -37,7 +37,7 @@ public class Prediction {
 
 	public static void main(String[] args) throws Exception {
 		Options opts = new Options();
-		CmdLineParser parser = new CmdLineParser(RegressionOnLeaves.class, opts);
+		CmdLineParser parser = new CmdLineParser(Prediction.class, opts);
 		try {
 			parser.parse(args);
 		} catch (IllegalArgumentException e) {

@@ -170,15 +170,14 @@ public class FirTree {
 		
 		// XW. If all parameter files exist, load all of the parameters
 		// XW. Parameters include intercept, coefficients, and constants on leaves
+		const_val = new double[nodeN];
+		intercept_val = new double[nodeN];
+		lr_attr_ids = new ArrayList<ArrayList<Integer>>(nodeN);
+		lr_coefs = new ArrayList<ArrayList<ArrayList<Double>>>(nodeN);
 		if (allExist) {
 			System.out.println("Load existing model parameters");
 			
 			// Load linear models and constants on FirTree leaves
-			const_val = new double[nodeN];
-			intercept_val = new double[nodeN];
-			lr_attr_ids = new ArrayList<ArrayList<Integer>>(nodeN);
-			lr_coefs = new ArrayList<ArrayList<ArrayList<Double>>>(nodeN);
-	
 			for(int nodeNo = 0; nodeNo < node_name.size(); nodeNo++){
 	
 				ArrayList<Integer> hold_lr_attr_ids = new ArrayList<Integer>();
@@ -370,64 +369,7 @@ public class FirTree {
 		return leafNames;
 	}
 	
-	public double predict(String data_str) {
-		String[] data = data_str.split("\t");
-		if(data.length != ainfo.getColN())
-		{ 
-			System.err.println("The number of columns in the data does not match the number of attributes in the file.");
-			System.exit(1);
-		}
-		int current_index = 0;
-		String next_node = new String();
 
-		while(true){
-			String current_node = node_name.get(current_index);
-			NodeType current_type = node_type.get(current_index);
-
-			if(current_type == NodeType.SPLIT) {
-				// identify the data point falls in which node (L or R) on this split.
-				int current_col = ainfo.idToCol(split_attr_id.get(current_index));
-				double current_val = Double.parseDouble(data[current_col]);
-				double current_split = split_val.get(current_index);
-				if(current_val <= current_split) {
-					next_node = current_node + "_L";
-				} else {
-					next_node = current_node + "_R";
-				}
-				int next_index = node_name.indexOf(next_node);
-				current_index = next_index;
-			} else {
-				// predict for this data point based on the const or model on the leaf it falls in.
-				double val = 0;
-				if(current_type == NodeType.CONST){
-					// predict by the const on the leaf
-					val = const_val[current_index];
-				} else {
-					// predict by the model on the leaf
-					val = intercept_val[current_index]; // intercept
-					ArrayList<Integer> current_lr_attr_ids = lr_attr_ids.get(current_index);
-					ArrayList<ArrayList<Double>> current_lr_coefs = lr_coefs.get(current_index);
-					for(int i_attr = 0; i_attr < current_lr_attr_ids.size(); i_attr++){
-						double current_x = Double.parseDouble(data[ainfo.idToCol(current_lr_attr_ids.get(i_attr))]);
-						double current_feature_min = current_lr_coefs.get(i_attr).get(polyDegree);
-						double current_feature_max = current_lr_coefs.get(i_attr).get(polyDegree + 1);
-						if(current_x < current_feature_min){
-							current_x = current_feature_min;
-						}
-						if(current_x > current_feature_max){
-							current_x = current_feature_max;
-						}
-						for(int i = 0; i < polyDegree; i++){
-							val += current_lr_coefs.get(i_attr).get(i)*Math.pow(current_x, i + 1); // each attribute
-						}
-					}
-				}
-
-				return val;
-			}
-		}
-	}
- 	
 	public void outcpp(String outputPath) throws Exception
 	{
 		BufferedWriter cpp_out = new BufferedWriter(new FileWriter(outputPath));
@@ -580,12 +522,97 @@ public class FirTree {
 		java_out.close();
 	}
 
-	// XW. Return a list of names of all leaves, either MODEL or CONST
-	public List<String> getAllLeaves() {
-		List<String> allLeaves = new ArrayList<>();
-		allLeaves.addAll(getRegressionLeaves());
-		allLeaves.addAll(getConstLeaves());
-		return allLeaves;
+	public double predict(String data_str) {
+		String[] data = data_str.split("\t");
+		if(data.length != ainfo.getColN())
+		{ 
+			System.err.println("The number of columns in the data does not match the number of attributes in the file.");
+			System.exit(1);
+		}
+		int current_index = 0;
+		String next_node = new String();
+
+		while(true){
+			String current_node = node_name.get(current_index);
+			NodeType current_type = node_type.get(current_index);
+
+			if(current_type == NodeType.SPLIT) {
+				// identify the data point falls in which node (L or R) on this split.
+				int current_col = ainfo.idToCol(split_attr_id.get(current_index));
+				double current_val = Double.parseDouble(data[current_col]);
+				double current_split = split_val.get(current_index);
+				if(current_val <= current_split) {
+					next_node = current_node + "_L";
+				} else {
+					next_node = current_node + "_R";
+				}
+				int next_index = node_name.indexOf(next_node);
+				current_index = next_index;
+			} else {
+				// predict for this data point based on the const or model on the leaf it falls in.
+				double val = 0;
+				if(current_type == NodeType.CONST){
+					// predict by the const on the leaf
+					val = const_val[current_index];
+				} else {
+					// predict by the model on the leaf
+					val = intercept_val[current_index]; // intercept
+					ArrayList<Integer> current_lr_attr_ids = lr_attr_ids.get(current_index);
+					ArrayList<ArrayList<Double>> current_lr_coefs = lr_coefs.get(current_index);
+					for(int i_attr = 0; i_attr < current_lr_attr_ids.size(); i_attr++){
+						double current_x = Double.parseDouble(data[ainfo.idToCol(current_lr_attr_ids.get(i_attr))]);
+						double current_feature_min = current_lr_coefs.get(i_attr).get(polyDegree);
+						double current_feature_max = current_lr_coefs.get(i_attr).get(polyDegree + 1);
+						if(current_x < current_feature_min){
+							current_x = current_feature_min;
+						}
+						if(current_x > current_feature_max){
+							current_x = current_feature_max;
+						}
+						for(int i = 0; i < polyDegree; i++){
+							val += current_lr_coefs.get(i_attr).get(i)*Math.pow(current_x, i + 1); // each attribute
+						}
+					}
+				}
+
+				return val;
+			}
+		}
+	}
+ 	
+	// XW. Largely equivalent to predict(String) but cache predictions in instances
+	public double predict(Instance instance) {
+		if (! instance.isIndexed()) {
+			System.err.println("Please call indexLeaf(Instance, String[]) when loading rank lists");
+			System.exit(1);
+		}
+		double[] data = instance.getValues();
+		
+		int currentIndex = instance.getNodeIndex();
+		NodeType currentType = node_type.get(currentIndex);
+		
+		// Use the leaf node the instance falls in to compute a prediction
+		double prediction = 0;
+		if (currentType == NodeType.CONST) {
+			prediction = const_val[currentIndex];
+		} else {
+			prediction = intercept_val[currentIndex];
+			ArrayList<Integer> leafAttrIds = lr_attr_ids.get(currentIndex);
+			ArrayList<ArrayList<Double>> leafCoefs = lr_coefs.get(currentIndex);
+			for (int attIndex = 0; attIndex < leafAttrIds.size(); attIndex ++) {
+				String attName = ainfo.idToName(leafAttrIds.get(attIndex));
+				double value = data[instance.getAttId(attName)];
+				value = truncate(currentIndex, attIndex, value);
+				for (int j = 0; j < polyDegree; j ++) {
+					// (j + 1)-th power of the attIndex-th attribute
+					prediction += leafCoefs.get(attIndex).get(j) * Math.pow(value, j + 1);
+				}
+			}
+		}
+		
+		// Cache the prediction for future incremental update
+		instance.setPrediction(prediction); // Easily forgot
+		return prediction;
 	}
 	
 	// XW. This is used to speed up training by incrementally computing predictions
@@ -623,24 +650,18 @@ public class FirTree {
 				prediction += paramDelta; // paramDelta = new_w_i - old_w_i
 			} else {
 				// Caused by updating coefficients
-				int i = getAttrIndex(activeNode, activeParam);
-				int j = getPolyIndex(activeNode, activeParam);
+				int attIndex = getAttIndex(activeNode, activeParam);
+				int polyIndex = getPolyIndex(activeNode, activeParam);
 				ArrayList<Integer> leafAttrIds = lr_attr_ids.get(currentIndex);
-				ArrayList<ArrayList<Double>> leafCoefs = lr_coefs.get(currentIndex);
 			
 				// This code snippet is copied from predict(Instance)
-				String attName = ainfo.idToName(leafAttrIds.get(i));
-				double x = data[instance.getAttId(attName)];
-				double xMin = leafCoefs.get(i).get(polyDegree);
-				double xMax = leafCoefs.get(i).get(polyDegree + 1);
-				if (x < xMin)
-					x = xMin;
-				if (x > xMax)
-					x = xMax;
-				double paramValue = Math.pow(x, j + 1);
+				String attName = ainfo.idToName(leafAttrIds.get(attIndex));
+				double value = data[instance.getAttId(attName)];
+				value = truncate(currentIndex, attIndex, value); // currentIndex == activeNode
+				double paramValue = Math.pow(value, polyIndex + 1);
 			
 				// paramDelta = new_w_i - old_w_i
-				// paramValue = (j + 1)-th power of the i-th attribute
+				// paramValue = (polyIndex + 1)-th power of the attIndex-th attribute
 				prediction += paramDelta * paramValue;
 			}
 			//*/
@@ -669,9 +690,17 @@ public class FirTree {
 		return prediction;
 	}
 	
+	// XW. Return a list of names of all leaves, either MODEL or CONST
+	public List<String> getAllLeaves() {
+		List<String> allLeaves = new ArrayList<>();
+		allLeaves.addAll(getRegressionLeaves());
+		allLeaves.addAll(getConstLeaves());
+		return allLeaves;
+	}
+	
 	// XW. A leaf's coefficients are two dimensional first by attribute then by polynomial degree
 	// XW. Map sampled one-dimensional parameter id to index of the attribute
-	private int getAttrIndex(int activeNode, int activeParam) {
+	private int getAttIndex(int activeNode, int activeParam) {
 		// Number of attributes used by the node (must be a leaf)
 		int n = lr_attr_ids.get(activeNode).size();
 		// 0, n, 2n, ... -> 0-th attribute
@@ -688,46 +717,6 @@ public class FirTree {
 		// n, n+1, ..., 2n-1 -> 1
 		// ...
 		return activeParam / n;
-	}
-	
-	// XW. Largely equivalent to predict(String) but cache predictions in instances
-	public double predict(Instance instance) {
-		if (! instance.isIndexed()) {
-			System.err.println("Please call indexLeaf(Instance, String[]) when loading rank lists");
-			System.exit(1);
-		}
-		double[] data = instance.getValues();
-		
-		int currentIndex = instance.getNodeIndex();
-		NodeType currentType = node_type.get(currentIndex);
-		
-		// Use the leaf node the instance falls in to compute a prediction
-		double prediction = 0;
-		if (currentType == NodeType.CONST) {
-			prediction = const_val[currentIndex];
-		} else {
-			prediction = intercept_val[currentIndex];
-			ArrayList<Integer> leafAttrIds = lr_attr_ids.get(currentIndex);
-			ArrayList<ArrayList<Double>> leafCoefs = lr_coefs.get(currentIndex);
-			for (int i = 0; i < leafAttrIds.size(); i ++) {
-				String attName = ainfo.idToName(leafAttrIds.get(i));
-				double x = data[instance.getAttId(attName)];
-				double xMin = leafCoefs.get(i).get(polyDegree);
-				double xMax = leafCoefs.get(i).get(polyDegree + 1);
-				if (x < xMin)
-					x = xMin;
-				if (x > xMax)
-					x = xMax;
-				for (int j = 0; j < polyDegree; j ++) {
-					// (j + 1)-th power of the i-th attribute
-					prediction += leafCoefs.get(i).get(j) * Math.pow(x, j + 1);
-				}
-			}
-		}
-		
-		// Cache the prediction for future incremental update
-		instance.setPrediction(prediction); // Easily forgot
-		return prediction;
 	}
 	
 	// XW. Decide which leaf node an instance falls in
@@ -801,9 +790,9 @@ public class FirTree {
 		if (activeParam == INTERCEPT) {
 			return intercept_val[activeNode];
 		} else {
-			int i = getAttrIndex(activeNode, activeParam);
-			int j = getPolyIndex(activeNode, activeParam);
-			return lr_coefs.get(activeNode).get(i).get(j);
+			int attIndex = getAttIndex(activeNode, activeParam);
+			int polyIndex = getPolyIndex(activeNode, activeParam);
+			return lr_coefs.get(activeNode).get(attIndex).get(polyIndex);
 		}
 	}
 	
@@ -812,12 +801,10 @@ public class FirTree {
 		if (activeParam == INTERCEPT) {
 			intercept_val[activeNode] += paramDelta;
 		} else {
-			int i = getAttrIndex(activeNode, activeParam);
-			int j = getPolyIndex(activeNode, activeParam);
-			lr_coefs.get(activeNode).get(i).set(
-					j, 
-					lr_coefs.get(activeNode).get(i).get(j) + paramDelta
-					);
+			int attIndex = getAttIndex(activeNode, activeParam);
+			int polyIndex = getPolyIndex(activeNode, activeParam);
+			lr_coefs.get(activeNode).get(attIndex).set(
+					polyIndex, lr_coefs.get(activeNode).get(attIndex).get(polyIndex) + paramDelta);
 		}
 	}
 	
@@ -826,11 +813,11 @@ public class FirTree {
 		if (activeParam == INTERCEPT) {
 			return "intercept";
 		} else {
-			int i = getAttrIndex(activeNode, activeParam);
-			int j = getPolyIndex(activeNode, activeParam);
-			int attrId = lr_attr_ids.get(activeNode).get(i);
+			int attIndex = getAttIndex(activeNode, activeParam);
+			int polyIndex = getPolyIndex(activeNode, activeParam);
+			int attrId = lr_attr_ids.get(activeNode).get(attIndex);
 			String paramName = ainfo.idToName(attrId);
-			paramName = String.format("%s^%d", paramName, j + 1).replace("_", "-");
+			paramName = String.format("%s^%d", paramName, polyIndex + 1).replace("_", "-");
 			return paramName;
 		}
 	}
@@ -877,6 +864,16 @@ public class FirTree {
 			System.exit(1);
 		}
 		return paramPath;
+	}
+	
+	public double truncate(int nodeIndex, int attIndex, double value) {
+		if (lr_coefs.size() > 0) {
+			double min = lr_coefs.get(nodeIndex).get(attIndex).get(polyDegree);
+			double max = lr_coefs.get(nodeIndex).get(attIndex).get(polyDegree + 1);
+			return Math.min(Math.max(value, min), max);
+		} else {
+			return value;
+		}
 	}
 }
 

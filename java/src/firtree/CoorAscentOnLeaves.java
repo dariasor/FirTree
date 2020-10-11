@@ -73,7 +73,7 @@ public class CoorAscentOnLeaves {
 		long start = System.currentTimeMillis();
 
 		// XW. OLS is better than uniform in initializing parameters of CA
-		//OrdLeastSquaresOnLeaves.main(args);
+		OrdLeastSquaresOnLeaves.main(args);
 		
 		// Load attribute file
 		AttrInfo ainfo = AttributesReader.read(opts.attPath);
@@ -102,14 +102,17 @@ public class CoorAscentOnLeaves {
 		    }
 			
 			Path outPath = Paths.get(dir.getAbsolutePath(), "fir.dta");
-			Files.deleteIfExists(outPath);
-			List<Path> inPaths = getDataPaths(opts.dir, leaf);
-		    // Join files (lines)
-		    for (Path inPath : inPaths) {
-				System.out.printf("Copy from %s to %s\n", inPath, outPath);
-		        List<String> lines = Files.readAllLines(inPath, StandardCharsets.UTF_8);
-		        Files.write(outPath, lines, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-		    }
+			if (Files.exists(outPath)) {
+				timeStamp(String.format("Data exists in %s", outPath));
+			} else {
+				List<Path> inPaths = getDataPaths(opts.dir, leaf);
+			    // Join files (lines)
+			    for (Path inPath : inPaths) {
+					System.out.printf("Copy from %s to %s\n", inPath, outPath);
+			        List<String> lines = Files.readAllLines(inPath, StandardCharsets.UTF_8);
+			        Files.write(outPath, lines, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
+			    }
+			}
 		}
 		
 		// Load training data
@@ -156,11 +159,13 @@ public class CoorAscentOnLeaves {
 		String dir = Paths.get(opts.logPath).getParent().toString();
 		String logPath = dir + "/CA_" + opts.modelPrefix + "_y" + opts.polyDegree + "_PLOTS";
 		File logDir = new File(logPath);
-		if (! logDir.exists())
+		if (! logDir.exists()) {
 			logDir.mkdirs();
-		else 
-			for (File logFile : logDir.listFiles())
+		} else {
+			for (File logFile : logDir.listFiles()) {
 				logFile.delete();
+			}
+		}
 		
 		int nIter = 0;
 		while (true) {
@@ -338,8 +343,9 @@ public class CoorAscentOnLeaves {
 		double total = 0;
 		double weight = 0;
 		for (RankList rankList : rankLists.values()) {
-			for (Instance instance : rankList.getInstances())
+			for (Instance instance : rankList.getInstances()) {
 				model.predict(instance);
+			}
 			// Set is easily forgot
 			rankList.setScore(scorer.score(rankList));
 			double score = rankList.getScore();
