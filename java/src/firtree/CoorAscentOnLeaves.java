@@ -58,6 +58,9 @@ public class CoorAscentOnLeaves {
 		// This argument comes from InteractionTreeLearnerGAMMC
 		@Argument(name = "-c", description = "(gauc|ndcg) - metric to optimize (default: gauc)")
 		String metricStr = "gauc";
+		
+		@Argument(name = "-a", description = "(params|minmax)")
+		String algorithm = "params";
 	}
 	
 	public static void main(String[] args) throws Exception {
@@ -72,8 +75,8 @@ public class CoorAscentOnLeaves {
 		
 		long start = System.currentTimeMillis();
 
-		// XW. OLS is better than uniform in initializing parameters of CA
-		OrdLeastSquaresOnLeaves.main(args);
+		// XW. OLS is better than uniform in initializing parameters of CA (manually call OLS)
+		//OrdLeastSquaresOnLeaves.main(args);
 		
 		// Load attribute file
 		AttrInfo ainfo = AttributesReader.read(opts.attPath);
@@ -118,19 +121,248 @@ public class CoorAscentOnLeaves {
 		// Load training data
 		Map<String, RankList> rankLists = loadRankList(opts, ainfo, model);
 
-		// Fine-tune parameter values of leaf nodes of type MODEL
 		MetricScorer scorer;
-		if (opts.metricStr.equals("gauc"))
+		if (opts.metricStr.equals("gauc")) {
 			scorer = new GAUCScorer();
-		else
+		} else {
 			scorer = new NDCGScorer();
-		fineTune(opts, model, rankLists, scorer);
-		
-		// Save final parameter values of leaf nodes of type MODEL
-		model.save();
+		}
+
+		if (opts.algorithm.equals("params")) {
+			timeStamp("Tune values of model parameters");
+			// Tune parameter values of leaf nodes of type MODEL
+			tuneParams(opts, model, rankLists, scorer);
+		} else if (opts.algorithm.equals("minmax")) {
+			timeStamp("Tune min and max values of features");
+			// Tune min and max values of features
+			tuneMinMax(opts, model, rankLists, scorer);
+		}
 		
 		long end = System.currentTimeMillis();
 		System.out.println("Finished all in " + (end - start) / 1000.0 + " (s).");
+	}
+	
+	protected static int indexMax = 1000;
+	protected static int indexNum = 50;
+	protected static double minGainBound = 0.00001;
+	
+	protected static void tuneMinMax(
+			Options opts,
+			FirTree model, 
+			Map<String, RankList> rankLists,
+			MetricScorer scorer
+			) throws Exception {
+		timeStamp("Start to tune min and max values");
+		boolean verbose = false; // Print debugging information, which is verbose
+		boolean correct = true; // Use time-consuming but correct implementation
+		
+		// Save the original min and max values to end of coefficients
+		model.backupBound();
+		
+		int nIter = 0;
+		while (true) {
+			// Reset cached predictions helps prevent numerical issues 
+			double scoreTrain = getScore(model, rankLists, scorer);
+			timeStamp(String.format("Training %s is %f at the start of iteration %d", 
+					scorer.name(), scoreTrain, nIter));
+			//System.exit(0);
+			
+			double startScoreTrain = scoreTrain;
+
+			// Reset cached predictions is disabled
+			List<IntPair> idPairs = model.getBoundIdPairs();
+			for (int i = 0; i < idPairs.size(); i ++) {
+				IntPair idPair = idPairs.get(i);
+				int activeNode = idPair.v1;
+				int activeAtt = idPair.v2;
+
+				double bestMin = model.getMinValue(activeNode, activeAtt);
+				double bestMax = model.getMaxValue(activeNode, activeAtt);
+				double bestScoreTrain = scoreTrain;
+				
+				int minIndex = model.getMinIndex(activeNode, activeAtt);
+				int maxIndex = model.getMaxIndex(activeNode, activeAtt);
+				
+				int attId = model.lr_attr_ids.get(activeNode).get(activeAtt);
+				int indexUnit = Math.max(1, model.attIdToValList.get(attId).size() / indexMax);
+				
+				if (verbose) {
+					System.out.printf("  #%d node, #%d att is %s (id:%d which is not col)\n", 
+							activeNode, activeAtt, model.ainfo.idToName(attId), attId);
+					System.out.printf("  #%d is min %.0f, #%d is max %.0f, index unit:%d\n", 
+							minIndex, bestMin, maxIndex, bestMax, indexUnit);
+				}
+				
+				double prevMin = bestMin;
+				for (int j = 0; j < indexNum; j ++) {
+					int curIndex = minIndex + j * indexUnit;
+					double currMin = model.attIdToValList.get(attId).get(curIndex);
+					if (currMin >= bestMax) {
+						break;
+					}
+					double minDelta = currMin - prevMin;
+					
+					///* Ablative Debug Start
+					if (correct) {
+						// This code snippet is time-consuming
+						model.setMinValue(activeNode, activeAtt, minDelta);
+						scoreTrain = getScore(model, rankLists, scorer);
+					} else {
+						scoreTrain = getScore(
+								model, rankLists, scorer, activeNode, activeAtt, minDelta, "min");
+					}
+					//*/ Ablative Debug End
+					///*
+					if (verbose) {
+						System.out.printf("    #%02d %07d %07d=%07d %.16f (min)\n", j, curIndex, 
+								(int) currMin, (int) model.getMinValue(activeNode, activeAtt), scoreTrain);
+					}
+					//*/
+					
+					if (scoreTrain > bestScoreTrain) {
+						bestMin = model.getMinValue(activeNode, activeAtt);
+						bestScoreTrain = scoreTrain;
+					}
+					
+					prevMin = currMin;
+				}
+				
+				// Set the active attribute to the best min value
+				double minDelta = bestMin - model.getMinValue(activeNode, activeAtt);
+				///* Ablative Debug Start
+				if (true) {
+					// This code snippet is time-consuming
+					model.setMinValue(activeNode, activeAtt, minDelta);
+					scoreTrain = getScore(model, rankLists, scorer);
+				} else {
+					scoreTrain = getScore(
+							model, rankLists, scorer, activeNode, activeAtt, minDelta, "min");
+				}
+				if (Math.abs(scoreTrain - bestScoreTrain) > Math.pow(10, -4)) {
+					System.err.println("Something wrong when setting best min value");
+					System.exit(1);
+				}
+				//*/ Ablative Debug End
+				///*
+				if (verbose) {
+					System.out.printf("  min:%07d score:%.16f (best)\n", (int) bestMin, scoreTrain);
+				}
+				//*/
+				
+				double prevMax = bestMax;
+				for (int j = 0; j < indexNum; j ++) {
+					int curIndex = maxIndex - j * indexUnit;
+					double currMax = model.attIdToValList.get(attId).get(curIndex);
+					if (currMax <= bestMin) {
+						break;
+					}
+					double maxDelta = currMax - prevMax;
+					
+					///* Ablative Debug Start
+					if (correct) {
+						// This code snippet is time-consuming
+						model.setMaxValue(activeNode, activeAtt, maxDelta);
+						scoreTrain = getScore(model, rankLists, scorer);
+					} else {
+						scoreTrain = getScore(
+								model, rankLists, scorer, activeNode, activeAtt, maxDelta, "max");
+					}
+					//*/ Ablative Debug End
+					if (verbose) {
+						System.out.printf("      #%02d %07d %07d=%07d %.16f (max)\n", j, curIndex, 
+								(int) currMax, (int) model.getMaxValue(activeNode, activeAtt), scoreTrain);
+					}
+					//*/
+					
+					if (scoreTrain > bestScoreTrain) {
+						bestMax = model.getMaxValue(activeNode, activeAtt);
+						bestScoreTrain = scoreTrain;
+					}
+					
+					prevMax = currMax;
+				}
+				
+				// Set the active attribute to the best max value
+				double maxDelta = bestMax - model.getMaxValue(activeNode, activeAtt);
+				///* Ablative Debug Start
+				if (true) {
+					// This code snippet is time-consuming
+					model.setMaxValue(activeNode, activeAtt, maxDelta);
+					scoreTrain = getScore(model, rankLists, scorer);
+				} else {
+					scoreTrain = getScore(
+							model, rankLists, scorer, activeNode, activeAtt, maxDelta, "max");
+				}
+				if (Math.abs(scoreTrain - bestScoreTrain) > Math.pow(10, -4)) {
+					System.err.println("Something wrong when setting best max value");
+					System.exit(1);
+				}
+				//*/ Ablative Debug End
+				///*
+				if (verbose) {
+					System.out.printf("  max:%07d score:%.16f (best)\n", (int) bestMax, scoreTrain);
+				}
+				//*/
+				
+				//break;			
+			}// for (int i = 0; i < idPairs.size(); i ++)
+
+			// Save model parameters at each iteration because training takes too long
+			model.save();
+			
+			double gainTrain = scoreTrain - startScoreTrain;
+			timeStamp(String.format("  Increase training %s by %f (from %f to %f)", 
+					scorer.name(), gainTrain, startScoreTrain, scoreTrain));
+			nIter += 1;
+			if (gainTrain < minGainBound) {
+				break;
+			}
+			
+			//break;
+		} // while (true)
+	}
+	
+	protected static double getScore(
+			FirTree model, 
+			Map<String, RankList> rankLists, 
+			MetricScorer scorer,
+			int activeNode,
+			int activeAtt,
+			double delta,
+			String type
+			) {
+		double total = 0;
+		double weight = 0;
+		if (type.equals("min")) {
+			model.setMinValue(activeNode, activeAtt, delta);
+		} else if (type.equals("max")) {
+			model.setMaxValue(activeNode, activeAtt, delta);
+		} else {
+			System.err.printf("Unknown type %s in CoorAscentOnLeaves.getScore\n", type);
+			System.exit(1);
+		}
+		for (RankList rankList : rankLists.values()) {
+			if (isActive(rankList, activeNode)) {
+				// There is one of the rank list's instances that falls in the active node
+				for (Instance instance : rankList.getInstances()) {
+					///* Ablative Debug Start
+					model.predict(instance, activeNode, activeAtt, delta, type);
+					//*/
+					/*// This code snippet is time-consuming
+					model.predict(instance);
+					*/// Ablative Debug End
+				}
+				// Set is easily forgot
+				rankList.setScore(scorer.score(rankList));
+			}
+			double score = rankList.getScore();
+			if (! Double.isNaN(score)) {
+				// If tp_fn and fp_tn are never 0 when computing AUC
+				total += score;
+				weight += rankList.getWeight();
+			}
+		}
+		return total / weight;
 	}
 	
 	// The hyper-parameters of training model parameters by coordinate ascent
@@ -149,12 +381,14 @@ public class CoorAscentOnLeaves {
 	public static double deltaMaxPower = 80; // A smaller value speeds up training
 	public static double minGainTrain = 0.00001; // A larger value speeds up training
 	
-	protected static void fineTune(
+	protected static void tuneParams(
 			Options opts,
 			FirTree model, 
 			Map<String, RankList> rankLists,
 			MetricScorer scorer
 			) throws Exception {
+		timeStamp("Start to tune parameters of linear models");
+		
 		// Create log directory and delete all previous log files
 		String dir = Paths.get(opts.logPath).getParent().toString();
 		String logPath = dir + "/CA_" + opts.modelPrefix + "_y" + opts.polyDegree + "_PLOTS";
@@ -173,11 +407,12 @@ public class CoorAscentOnLeaves {
 			double scoreTrain = getScore(model, rankLists, scorer);
 			System.out.printf("Training %s is %f at the start of iteration %d\n", 
 					scorer.name(), scoreTrain, nIter);
+			//System.exit(0);
 
 			double startScoreTrain = scoreTrain;
 
 			// Reset cached predictions is disabled
-			List<IntPair> idPairs = model.getShuffledIdPairs();
+			List<IntPair> idPairs = model.getParamIdPairs();
 			for (int i = 0; i < idPairs.size(); i ++) {
 				IntPair idPair = idPairs.get(i);
 				int activeNode = idPair.v1;
@@ -286,6 +521,9 @@ public class CoorAscentOnLeaves {
 				FileUtils.write(logFile, "ASCII", strToWrite);
 			} // for (int i = 0; i < idPairs.size(); i ++)
 
+			// Save model parameters at each iteration because training takes too long
+			model.save();
+
 			double gainTrain = scoreTrain - startScoreTrain;
 			System.out.printf("\tIncrease training %s by %f (from %f to %f)\n", 
 					scorer.name(), gainTrain, startScoreTrain, scoreTrain);
@@ -294,9 +532,7 @@ public class CoorAscentOnLeaves {
 				break;
 			}
 			
-			// Save model parameters at each iteration because training takes too long
-			model.save();
-//			break;			
+			//break;			
 		} // while (true)
 	}
 		
@@ -420,7 +656,9 @@ public class CoorAscentOnLeaves {
 				if (Math.abs(model.predict(line) - model.predict(instance)) > Math.pow(10, -10)) {
 					System.err.println("Diffferent versions of FirTree.predict are inconsistent");
 					System.exit(1);
-				}			
+				}
+				
+				model.addAttIdToValSet(attIdList, data);
 			}
 			br.close();
 		}
@@ -428,6 +666,9 @@ public class CoorAscentOnLeaves {
 		// Set the weight of a rank list
 		for (RankList rankList : rankLists.values())
 			rankList.setWeight();
+		
+		model.addAttIdToValList();
+		
 		return rankLists;
 	}
 	

@@ -105,9 +105,9 @@ public class NDCGScorer extends DCGScorer {
 		if (Math.abs(pred_ndcg - true_ndcg) > Math.pow(10, -10)) {
 			System.err.printf("%s fails due to %.10f (pred) != %.10f (true)\n", 
 					groupId, pred_ndcg, true_ndcg);
-			//System.exit(1);
-		} else 
+		} else {
 			System.out.printf("%s succeeds\n", groupId);
+		}
 	}
 	
 	static void test(String gain_type, int k, double[] true_ndcg) {
