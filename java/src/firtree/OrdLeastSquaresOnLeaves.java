@@ -39,7 +39,7 @@ public class OrdLeastSquaresOnLeaves {
 		String group = "";
 		
 		@Argument(name = "-m", description = "Prefix of name of output parameter files (default: ols)")
-		String modelPrefix = "ols";
+		String modelPrefix = "ols_y2";
 		
 		@Argument(name = "-o", description = "Override the results of OLS")
 		int override = 0;
@@ -124,6 +124,8 @@ public class OrdLeastSquaresOnLeaves {
 			Set<String> groupIdSet = null;
 			if (crash) {
 				groupIdSet = subsample(col_num, ainfo, opts, dataPath);
+			} else {
+				timeStamp("No need to subsample data points");
 			}
 			
 			List<List<Double>> xMat_arraylist = new ArrayList<List<Double>>(); //dynamic memory for temp data storage - features

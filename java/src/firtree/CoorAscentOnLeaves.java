@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Date;
@@ -53,7 +54,7 @@ public class CoorAscentOnLeaves {
 		String group = "";
 		
 		@Argument(name = "-m", description = "Prefix of name of output parameter files (default: ca)")
-		String modelPrefix = "ca";
+		String modelPrefix = "ca_params_y2";
 		
 		// This argument comes from InteractionTreeLearnerGAMMC
 		@Argument(name = "-c", description = "(gauc|ndcg) - metric to optimize (default: gauc)")
@@ -61,6 +62,9 @@ public class CoorAscentOnLeaves {
 		
 		@Argument(name = "-a", description = "(params|minmax)")
 		String algorithm = "params";
+		
+		@Argument(name = "-i", description = "Initialize model parameters by OLS or an existing model")
+		String modelInitial = "";
 	}
 	
 	public static void main(String[] args) throws Exception {
@@ -76,7 +80,28 @@ public class CoorAscentOnLeaves {
 		long start = System.currentTimeMillis();
 
 		// XW. OLS is better than uniform in initializing parameters of CA (manually call OLS)
-		//OrdLeastSquaresOnLeaves.main(args);
+		if (! opts.modelInitial.equals("")) {
+			String dir = Paths.get(opts.logPath).getParent().toString();
+			for (File nodeFile : new File(dir).listFiles()) {
+				if (nodeFile.getName().startsWith("Node_Root_")) {
+					String nodeDir = nodeFile.toString();
+					Path modelSrc = Paths.get(nodeDir, opts.modelInitial + ".txt");
+					Path modelTgt = Paths.get(nodeDir, opts.modelPrefix + ".txt");
+					if (modelSrc.toFile().exists()) {
+						timeStamp(String.format("Copy model parameters from %s to %s", modelSrc, modelTgt));
+						Files.copy(modelSrc, modelTgt, StandardCopyOption.REPLACE_EXISTING);
+					}
+					Path constSrc = Paths.get(nodeDir, opts.modelInitial + "_const.txt");
+					Path constTgt = Paths.get(nodeDir, opts.modelPrefix + "_const.txt");
+					if (constSrc.toFile().exists()) {
+						timeStamp(String.format("Copy const parameters from %s to %s", constSrc, constTgt));
+						Files.copy(constSrc, constTgt, StandardCopyOption.REPLACE_EXISTING);
+					}
+				}
+			}
+		} else {
+			OrdLeastSquaresOnLeaves.main(args);
+		}
 		
 		// Load attribute file
 		AttrInfo ainfo = AttributesReader.read(opts.attPath);
@@ -142,7 +167,7 @@ public class CoorAscentOnLeaves {
 		System.out.println("Finished all in " + (end - start) / 1000.0 + " (s).");
 	}
 	
-	protected static int indexMax = 1000;
+	protected static int indexMax = 5000;
 	protected static int indexNum = 50;
 	protected static double minGainBound = 0.00001;
 	
@@ -154,7 +179,7 @@ public class CoorAscentOnLeaves {
 			) throws Exception {
 		timeStamp("Start to tune min and max values");
 		boolean verbose = false; // Print debugging information, which is verbose
-		boolean correct = true; // Use time-consuming but correct implementation
+		boolean correct = false; // Use time-consuming but correct implementation
 		
 		// Save the original min and max values to end of coefficients
 		model.backupBound();
@@ -308,7 +333,7 @@ public class CoorAscentOnLeaves {
 			}// for (int i = 0; i < idPairs.size(); i ++)
 
 			// Save model parameters at each iteration because training takes too long
-			model.save();
+			model.save(nIter);
 			
 			double gainTrain = scoreTrain - startScoreTrain;
 			timeStamp(String.format("  Increase training %s by %f (from %f to %f)", 
@@ -320,6 +345,7 @@ public class CoorAscentOnLeaves {
 			
 			//break;
 		} // while (true)
+		model.save(-1);
 	}
 	
 	protected static double getScore(
@@ -522,7 +548,7 @@ public class CoorAscentOnLeaves {
 			} // for (int i = 0; i < idPairs.size(); i ++)
 
 			// Save model parameters at each iteration because training takes too long
-			model.save();
+			model.save(nIter);
 
 			double gainTrain = scoreTrain - startScoreTrain;
 			System.out.printf("\tIncrease training %s by %f (from %f to %f)\n", 
@@ -534,6 +560,7 @@ public class CoorAscentOnLeaves {
 			
 			//break;			
 		} // while (true)
+		model.save(-1);
 	}
 		
 	protected static double getScore(

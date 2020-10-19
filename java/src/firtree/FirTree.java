@@ -961,11 +961,15 @@ public class FirTree {
 	}
 	
 	// XW
-	public void save() throws Exception {
+	public void save(int nIter) throws Exception {
 		List<String> modelLeaves = getRegressionLeaves();
 		for (String leafName : modelLeaves) {
 			int nodeIndex = nodeIndexes.get(leafName);
+			
 			String paramPath = getParamPath(nodeIndex);
+			if ((nIter >= 0) && (! paramPath.endsWith("_const.txt"))) {
+				paramPath = paramPath.replace(".txt", "_n" + nIter + ".txt");
+			}
 			BufferedWriter bw = new BufferedWriter(new FileWriter(paramPath));
 
 			ArrayList<Integer> leafAttrIds = lr_attr_ids.get(nodeIndex);
@@ -979,14 +983,21 @@ public class FirTree {
 					bw.write(leafCoefs.get(i).get(j) + "\t" );
 				}
 				
-				// These min and max values are varied (used for training and testing)
-				bw.write(leafCoefs.get(i).get(polyDegree) + "\t"); // Min
-				bw.write(leafCoefs.get(i).get(polyDegree + 1) + "\t"); // Max
-				if (leafCoefs.get(i).size() >= polyDegree + 4) {
+				if (leafCoefs.get(i).size() == polyDegree + 2) {
+					// These min and max values are varied (used for training and testing)
+					bw.write(leafCoefs.get(i).get(polyDegree) + "\t"); // Min
+					bw.write(leafCoefs.get(i).get(polyDegree + 1) + "\n"); // Max
+				} else if (leafCoefs.get(i).size() == polyDegree + 4) {
+					// These min and max values are varied (used for training and testing)
+					bw.write(leafCoefs.get(i).get(polyDegree) + "\t"); // Min
+					bw.write(leafCoefs.get(i).get(polyDegree + 1) + "\t"); // Max
 					// These min and max values are fixed (determined by a training set)
 					bw.write(leafCoefs.get(i).get(polyDegree + 2) + "\t"); // Min
 					bw.write(leafCoefs.get(i).get(polyDegree + 3) + "\n"); // Max
-				} 
+				} else {
+					System.err.printf("Invalid #params:%d degree:%d\n", leafCoefs.get(i).size(), polyDegree);
+					System.exit(1);
+				}
 			}
 			bw.flush();
 			bw.close();
@@ -1001,7 +1012,7 @@ public class FirTree {
 	private String getParamPath(int nodeIndex) {
 		String paramPath = dir + "/Node_" + node_name.get(nodeIndex) + "/" + modelPrefix;
 		if (node_type.get(nodeIndex) == NodeType.MODEL) {
-			paramPath += "_y" + polyDegree + ".txt";
+			paramPath += ".txt";
 		} else if (node_type.get(nodeIndex) == NodeType.CONST) {
 			paramPath += "_const.txt";
 		} else {
