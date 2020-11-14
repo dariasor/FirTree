@@ -39,7 +39,10 @@ public class OrdLeastSquaresOnLeaves {
 		String group = "";
 		
 		@Argument(name = "-m", description = "Prefix of name of output parameter files (default: ols)")
-		String modelPrefix = "ols";
+		String modelPrefix = "ols_y2";
+		
+		@Argument(name = "-o", description = "Override the results of OLS")
+		int override = 0;
 	}
 
 
@@ -58,7 +61,7 @@ public class OrdLeastSquaresOnLeaves {
 		//Load attrFile and tree structure.
 		timeStamp("Load attrFile");
 		AttrInfo ainfo = AttributesReader.read(opts.attPath);
-		FirTree model = new FirTree(ainfo, opts.logPath, opts.polyDegree, opts.modelPrefix);
+		FirTree model = new FirTree(ainfo, opts.logPath, opts.polyDegree, opts.modelPrefix, opts.override);
 		ArrayList<String> leavesModel = model.getRegressionLeaves();
 		ArrayList<String> leavesConst = model.getConstLeaves();
 		
@@ -105,7 +108,7 @@ public class OrdLeastSquaresOnLeaves {
 			
 			int nodeIndex = model.nodeIndexes.get(leafName);
 			
-			System.out.println("------------Processing leaf "+ leafName + "------------");
+			timeStamp("------------Processing leaf "+ leafName + "------------");
 
 			long start_load = System.currentTimeMillis();
 			timeStamp("Scan data");
@@ -121,6 +124,8 @@ public class OrdLeastSquaresOnLeaves {
 			Set<String> groupIdSet = null;
 			if (crash) {
 				groupIdSet = subsample(col_num, ainfo, opts, dataPath);
+			} else {
+				timeStamp("No need to subsample data points");
 			}
 			
 			List<List<Double>> xMat_arraylist = new ArrayList<List<Double>>(); //dynamic memory for temp data storage - features
@@ -150,7 +155,7 @@ public class OrdLeastSquaresOnLeaves {
 			long end_load = System.currentTimeMillis();
 
 			int row_num = y_double_arraylist.size(); // number of data points
-			System.out.println("Number of data points: "  + row_num);
+			timeStamp("Number of data points: "  + row_num);
 
 			//copy the data into regular arrays, as required for regression model input
 			double[] y_double = new double[row_num];
@@ -219,8 +224,8 @@ public class OrdLeastSquaresOnLeaves {
 
 			long end_train = System.currentTimeMillis();
 
-			System.out.println("Finished training OLS on this node in " + (end_train - start_load) / 1000.0 + " (s).");
-			System.out.println("Without loading data, the model training step takes " + (end_train - end_load) / 1000.0 + " (s).");
+			timeStamp("Finished training OLS on this node in " + (end_train - start_load) / 1000.0 + " (s).");
+			timeStamp("Without loading data, the model training step takes " + (end_train - end_load) / 1000.0 + " (s).");
 		}
 
 		// Get constant for each leafConst;
@@ -261,7 +266,7 @@ public class OrdLeastSquaresOnLeaves {
 		}
 		
 		long end = System.currentTimeMillis();
-		System.out.println("Finished all in " + (end - start) / 1000.0 + " (s).");
+		timeStamp("Finished all in " + (end - start) / 1000.0 + " (s).");
 	}
 	
 	static String getNodeDir(String dir, String node) {

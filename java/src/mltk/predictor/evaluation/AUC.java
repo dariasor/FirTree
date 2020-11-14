@@ -151,6 +151,24 @@ public class AUC extends Metric {
 	protected double eval(DoubleTriple[] a) {
 		Arrays.sort(a, new DoubleTripleComparator());
 
+		// See https://github.com/dariasor/ag_scripts/blob/master/General/GroupROC_Dir/group_roc.cpp
+		double[] fraction = new double[a.length];
+		int item = 0;
+		while (item < a.length) {
+			int begin = item;
+			double posV = 0;
+			double tieV = 0;
+			for (; (item < a.length) && (a[item].v1 == a[begin].v1); item ++) {
+				posV += a[item].v2 * a[item].v3; 
+				tieV += a[item].v3;
+			}
+
+			double curFrac = posV / tieV;
+			for (int i = begin; i < item; i ++) {
+				fraction[i] = curFrac;
+			}
+		}
+		
 		double tp = 0; // Variable tp is true positive, equivalent to tt
 		double fp = 0; // Variable fp is false positive, equivalent to ft
 		double tp_fn = 0; // Variable fn is false negative, equivalent to tf
@@ -168,8 +186,8 @@ public class AUC extends Metric {
 		while (i >= 0) {
 			double threshold = a[i].v1;
 			do {
-				tp += a[i].v2 * a[i].v3;
-				fp += (1 - a[i].v2) * a[i].v3;
+				tp += fraction[i] * a[i].v3; // a[i].v2 * a[i].v3;
+				fp += (1 - fraction[i]) * a[i].v3; // (1 - a[i].v2) * a[i].v3;
 				i --;
 			} while (i >= 0 && a[i].v1 == threshold);
 
