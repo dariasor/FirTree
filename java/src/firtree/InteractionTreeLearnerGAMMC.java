@@ -524,8 +524,8 @@ public class InteractionTreeLearnerGAMMC {
 		subsample(data_size, zero_size, 2.0/3.0, 200000, 500000, dir, dtaAG, tar_col, 2); 
 		
 		// 2. Fast feature selection
-		timeStamp("Select 12 features for AG.");
-		runProcess(dir, BT, attr, train, valid, String.format("-k 12 -b 300 -a 0.01 -h %d", nThread)); 
+		timeStamp("Select 12 features and add up to 3 split features for AG.");
+		runProcess(dir, BT, attr, train, valid, String.format("-k 12 -b 300 -a 0.01 -h %d -s 3", nThread)); 
  
 		// XW. Remove bulky BTTemp after running bt_train
 		File btDir = new File(tmpDir + File.separator + "BTTemp");
