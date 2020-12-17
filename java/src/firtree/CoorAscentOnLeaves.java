@@ -180,6 +180,7 @@ public class CoorAscentOnLeaves {
 		timeStamp("Start to tune min and max values");
 		boolean verbose = false; // Print debugging information, which is verbose
 		boolean correct = false; // Use time-consuming but correct implementation
+		double tolerance = 5 * Math.pow(10, -3);
 		
 		// Save the original min and max values to end of coefficients
 		model.backupBound();
@@ -263,8 +264,9 @@ public class CoorAscentOnLeaves {
 					scoreTrain = getScore(
 							model, rankLists, scorer, activeNode, activeAtt, minDelta, "min");
 				}
-				if (Math.abs(scoreTrain - bestScoreTrain) > Math.pow(10, -4)) {
-					System.err.println("Something wrong when setting best min value");
+				if (Math.abs(scoreTrain - bestScoreTrain) > tolerance) {
+					System.err.printf("%s: estimated %f v.s. real %f if setting min to %f\n",
+							scorer.name(), bestScoreTrain, scoreTrain, bestMin);
 					System.exit(1);
 				}
 				//*/ Ablative Debug End
@@ -318,8 +320,9 @@ public class CoorAscentOnLeaves {
 					scoreTrain = getScore(
 							model, rankLists, scorer, activeNode, activeAtt, maxDelta, "max");
 				}
-				if (Math.abs(scoreTrain - bestScoreTrain) > Math.pow(10, -4)) {
-					System.err.println("Something wrong when setting best max value");
+				if (Math.abs(scoreTrain - bestScoreTrain) > 5 * Math.pow(10, -3)) {
+					System.err.printf("%s: estimated %f v.s. real %f if setting min to %f\n",
+							scorer.name(), bestScoreTrain, scoreTrain, bestMax);
 					System.exit(1);
 				}
 				//*/ Ablative Debug End
