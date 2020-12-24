@@ -16,7 +16,7 @@ import mltk.core.io.AttributesReader;
 public class Prediction {
 	
 	static class Options {
-		@Argument(name="-l", description="treelog.txt (cropped). Use this to specify a model", required=true)
+		@Argument(name="-l", description="(cropped) treelog.txt which specifies a tree structure", required=true)
 		String logPath = "";
 		
 		@Argument(name = "-r", description = "attribute file", required = true)
