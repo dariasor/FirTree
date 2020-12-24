@@ -72,6 +72,12 @@ public class FirTree {
 		this.polyDegree = polyDegree;
 		this.modelPrefix = modelPrefix;
 		
+		File logFile = new File(logPath);
+		if (!logFile.exists() || !logFile.isFile()) { 
+			System.err.printf("treelog.txt does not exist in %s\n", logPath);
+			System.exit(1);
+		}
+		
 		this.dir = Paths.get(logPath).getParent().toString();
 		
 		node_name = new ArrayList<String>();
