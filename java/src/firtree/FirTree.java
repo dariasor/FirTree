@@ -1001,7 +1001,8 @@ public class FirTree {
 					bw.write(leafCoefs.get(i).get(polyDegree + 2) + "\t"); // Min
 					bw.write(leafCoefs.get(i).get(polyDegree + 3) + "\n"); // Max
 				} else {
-					System.err.printf("Invalid #params:%d degree:%d\n", leafCoefs.get(i).size(), polyDegree);
+					System.err.printf("%d coefficients (including min/max) with degree %d\n", 
+							leafCoefs.get(i).size(), polyDegree);
 					System.exit(1);
 				}
 			}
@@ -1038,14 +1039,17 @@ public class FirTree {
 		}
 	}
 	
-	public void backupBound() {
+	public void bakMinmax() {
 		for (int nodeIndex = 0; nodeIndex < lr_coefs.size(); nodeIndex ++) {
 			for (int attIndex = 0; attIndex < lr_coefs.get(nodeIndex).size(); attIndex ++) {
 				int size = lr_coefs.get(nodeIndex).get(attIndex).size();
-				double min = lr_coefs.get(nodeIndex).get(attIndex).get(size - 2);
-				double max = lr_coefs.get(nodeIndex).get(attIndex).get(size - 1);
-				lr_coefs.get(nodeIndex).get(attIndex).add(min);
-				lr_coefs.get(nodeIndex).get(attIndex).add(max);
+				// Backup min/max only when we haven't done it yet
+				if (size == polyDegree + 2) {
+					double min = lr_coefs.get(nodeIndex).get(attIndex).get(size - 2);
+					double max = lr_coefs.get(nodeIndex).get(attIndex).get(size - 1);
+					lr_coefs.get(nodeIndex).get(attIndex).add(min);
+					lr_coefs.get(nodeIndex).get(attIndex).add(max);
+				}
 			}
 			/*//
 			System.out.printf("%d %d\n", nodeIndex, lr_coefs.get(nodeIndex).size());

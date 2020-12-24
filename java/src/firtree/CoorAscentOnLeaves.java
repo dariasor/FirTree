@@ -183,7 +183,7 @@ public class CoorAscentOnLeaves {
 		double tolerance = 5 * Math.pow(10, -3);
 		
 		// Save the original min and max values to end of coefficients
-		model.backupBound();
+		model.bakMinmax();
 		
 		int nIter = 0;
 		while (true) {

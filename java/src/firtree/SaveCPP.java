@@ -14,7 +14,7 @@ public class SaveCPP {
 		@Argument(name = "-r", description = "attribute file", required = true)
 		String attPath = "";
 		
-		@Argument(name = "-y", description = "polynomial degree")
+		@Argument(name = "-y", description = "polynomial degree", required = true)
 		int polyDegree = 2;
 
 		@Argument(name = "-o", description = "output file with c++ code", required = true)
