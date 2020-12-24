@@ -66,6 +66,7 @@ public class OrdLeastSquaresOnLeaves {
 		ArrayList<String> leavesConst = model.getConstLeaves();
 		
 		// Reconstruct a cropped FirTree from treelog txt file
+		/*
 		for (String leaf : leavesModel) {
 		    File dir = new File(getNodeDir(model.dir, leaf));
 		    if (! dir.exists()) {
@@ -85,6 +86,7 @@ public class OrdLeastSquaresOnLeaves {
 			    }
 			}
 		}
+		*/
 		
 		for(int i_leaf = 0; i_leaf < leavesModel.size(); i_leaf++){
 			String leafName = leavesModel.get(i_leaf);

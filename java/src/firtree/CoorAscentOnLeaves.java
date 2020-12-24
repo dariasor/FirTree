@@ -120,29 +120,6 @@ public class CoorAscentOnLeaves {
 			}
 		}
 		
-		List<String> modelLeaves = model.getRegressionLeaves();
-		
-		// Reconstruct a cropped FirTree from treelog txt file
-		for (String leaf : modelLeaves) {
-		    File dir = new File(getNodeDir(model.dir, leaf));
-		    if (! dir.exists()) {
-		    	dir.mkdirs();
-		    }
-			
-			Path outPath = Paths.get(dir.getAbsolutePath(), "fir.dta");
-			if (Files.exists(outPath)) {
-				timeStamp(String.format("Data exists in %s", outPath));
-			} else {
-				List<Path> inPaths = getDataPaths(opts.dir, leaf);
-			    // Join files (lines)
-			    for (Path inPath : inPaths) {
-					System.out.printf("Copy from %s to %s\n", inPath, outPath);
-			        List<String> lines = Files.readAllLines(inPath, StandardCharsets.UTF_8);
-			        Files.write(outPath, lines, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-			    }
-			}
-		}
-		
 		// Load training data
 		Map<String, RankList> rankLists = loadRankList(opts, ainfo, model);
 
@@ -669,7 +646,7 @@ public class CoorAscentOnLeaves {
 				instance.setGroupId(groupId);
 				
 				// Predict index of the node (must be a leaf) the instance falls in
-				int nodeIndex = model.indexLeaf(instance, data);
+				int nodeIndex = model.indexLeaf(data); // model.indexLeaf(instance, data);
 				String nodeName = model.getNodeName(nodeIndex);
 				if (! nodeName.equals(leafName)) {
 					System.err.printf("Not all instances in directory %s fall in node %s\n", leafName, nodeName);

@@ -61,6 +61,11 @@ public class FirTree {
 	// XW
 	private int INTERCEPT = -1;
 	
+	public FirTree(AttrInfo ainfo, String logPath) throws Exception {
+		// XW. We won't load model parameters when override is 1
+		this(ainfo, logPath, 0, "", 1);
+	}
+	
 	public FirTree(AttrInfo ainfo, String logPath, int polyDegree, String modelPrefix) 
 			throws Exception {
 		this(ainfo, logPath, polyDegree, modelPrefix, 0);
@@ -848,7 +853,7 @@ public class FirTree {
 	}
 	
 	// XW. Decide which leaf node an instance falls in
-	public int indexLeaf(Instance instance, String[] data) {
+	public int indexLeaf(String[] data) {
 		if (data.length != ainfo.getColN()) {
 			System.err.println("FirTree.indexLeaf: The number of columns in the data does not match the number of attributes in the file");
 			System.exit(1);
