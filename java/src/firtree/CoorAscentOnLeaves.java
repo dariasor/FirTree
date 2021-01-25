@@ -83,7 +83,7 @@ public class CoorAscentOnLeaves {
 		if (! opts.modelInitial.equals("")) {
 			String dir = Paths.get(opts.logPath).getParent().toString();
 			for (File nodeFile : new File(dir).listFiles()) {
-				if (nodeFile.getName().startsWith("Node_Root_")) {
+				if (nodeFile.getName().startsWith("Node_Root")) {
 					String nodeDir = nodeFile.toString();
 					Path modelSrc = Paths.get(nodeDir, opts.modelInitial + ".txt");
 					Path modelTgt = Paths.get(nodeDir, opts.modelPrefix + ".txt");
