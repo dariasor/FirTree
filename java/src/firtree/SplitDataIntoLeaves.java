@@ -72,6 +72,7 @@ public class SplitDataIntoLeaves {
 			
 			Path outPath = Paths.get(dir.getAbsolutePath(), "fir.dta");
 			System.out.printf("Save %d instances into %s\n", lines.size(), outPath);
+			Files.deleteIfExists(outPath);
 			Files.write(outPath, lines, StandardCharsets.UTF_8, StandardOpenOption.CREATE);
 		}
 	}
