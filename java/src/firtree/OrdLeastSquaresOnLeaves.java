@@ -22,8 +22,8 @@ import smile.regression.*;
 public class OrdLeastSquaresOnLeaves {
 
 	static class Options {
-		@Argument(name="-d", description="FirTree directory output by InteractionTreeLearnerGAMMC", required=true)
-		String dir = ""; // Usually path up to "FirTree" inclusive
+//		@Argument(name="-d", description="FirTree directory output by InteractionTreeLearnerGAMMC", required=true)
+//		String dir = ""; // Usually path up to "FirTree" inclusive
 
 		@Argument(name="-l", description="(cropped) treelog.txt which specifies a tree structure", required=true)
 		String logPath = "";

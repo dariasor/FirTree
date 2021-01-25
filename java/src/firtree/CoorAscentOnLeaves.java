@@ -37,8 +37,8 @@ public class CoorAscentOnLeaves {
 
 	static class Options {
 		// The following arguments come from OrdLeastSquaresOnLeaves
-		@Argument(name="-d", description="FirTree directory output by InteractionTreeLearnerGAMMC", required=true)
-		String dir = ""; // Usually path up to "FirTree" inclusive
+//		@Argument(name="-d", description="FirTree directory output by InteractionTreeLearnerGAMMC", required=true)
+//		String dir = ""; // Usually path up to "FirTree" inclusive
 
 		@Argument(name="-l", description="(cropped) treelog.txt which specifies a tree structure", required=true)
 		String logPath = "";
