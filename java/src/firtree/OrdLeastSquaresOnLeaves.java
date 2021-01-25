@@ -42,7 +42,7 @@ public class OrdLeastSquaresOnLeaves {
 		String modelPrefix = "ols_y2";
 		
 		@Argument(name = "-o", description = "Override the results of OLS")
-		int override = 0;
+		int override = 1;
 	}
 
 
@@ -64,29 +64,6 @@ public class OrdLeastSquaresOnLeaves {
 		FirTree model = new FirTree(ainfo, opts.logPath, opts.polyDegree, opts.modelPrefix, opts.override);
 		ArrayList<String> leavesModel = model.getRegressionLeaves();
 		ArrayList<String> leavesConst = model.getConstLeaves();
-		
-		// Reconstruct a cropped FirTree from treelog txt file
-		/*
-		for (String leaf : leavesModel) {
-		    File dir = new File(getNodeDir(model.dir, leaf));
-		    if (! dir.exists()) {
-		    	dir.mkdirs();
-		    }
-			
-			Path outPath = Paths.get(dir.getAbsolutePath(), "fir.dta");
-			if (Files.exists(outPath)) {
-				timeStamp(String.format("Data exists in %s", outPath));
-			} else {
-				List<Path> inPaths = getDataPaths(opts.dir, leaf);
-			    // Join files (lines)
-			    for (Path inPath : inPaths) {
-					timeStamp(String.format("Copy from %s to %s", inPath, outPath));
-			        List<String> lines = Files.readAllLines(inPath, StandardCharsets.UTF_8);
-			        Files.write(outPath, lines, StandardCharsets.UTF_8, StandardOpenOption.CREATE, StandardOpenOption.APPEND);
-			    }
-			}
-		}
-		*/
 		
 		for(int i_leaf = 0; i_leaf < leavesModel.size(); i_leaf++){
 			String leafName = leavesModel.get(i_leaf);
@@ -169,24 +146,7 @@ public class OrdLeastSquaresOnLeaves {
 					xMat[i][j] = xMat_arraylist.get(i).get(j);
 				}
 			}
-
-			// Train OLS with polynomial terms
-			timeStamp("Training OLS with transformed features");
-			double[][] xMat_trans = new double[xMat.length][xMat[0].length * opts.polyDegree];
-			for(int i = 0; i < xMat.length; i++){
-				for(int j = 0; j < xMat[0].length; j++){
-					for(int i_trans = 0; i_trans < opts.polyDegree; i_trans++){
-						xMat_trans[i][j * opts.polyDegree + i_trans] = Math.pow(xMat[i][j], i_trans + 1);
-					}
-				}
-			}
-
-			// Setting the last parameter to True to use SVD decomposition as part of the regression
-			OLS ols_trans = new OLS(xMat_trans, y_double, true);
-
-			double[] ols_trans_coef = ols_trans.coefficients();
-			double ols_trans_intercept = ols_trans.intercept();
-
+			
 			// get the range of each selected feature for thresholding
 			ArrayList<ArrayList<Double>> attr_range = new ArrayList<ArrayList<Double>>();
 			for(int j = 0; j < col_num; j++){
@@ -205,6 +165,23 @@ public class OrdLeastSquaresOnLeaves {
 				current_attr_range.add(current_attr_max);
 				attr_range.add(current_attr_range);
 			}
+
+			// Train OLS with polynomial terms
+			timeStamp("Training OLS with transformed features");
+			double[][] xMat_trans = new double[xMat.length][xMat[0].length * opts.polyDegree];
+			for(int i = 0; i < xMat.length; i++){
+				for(int j = 0; j < xMat[0].length; j++){
+					for(int i_trans = 0; i_trans < opts.polyDegree; i_trans++){
+						xMat_trans[i][j * opts.polyDegree + i_trans] = Math.pow(xMat[i][j], i_trans + 1);
+					}
+				}
+			}
+
+			// Setting the last parameter to True to use SVD decomposition as part of the regression
+			OLS ols_trans = new OLS(xMat_trans, y_double, true);
+
+			double[] ols_trans_coef = ols_trans.coefficients();
+			double ols_trans_intercept = ols_trans.intercept();
 
 			timeStamp("Save the model");
 
