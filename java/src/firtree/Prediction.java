@@ -50,10 +50,12 @@ public class Prediction {
 		AttrInfo ainfo = AttributesReader.read(opts.attPath);
 		FirTree model = new FirTree(ainfo, opts.logPath, opts.polyDegree, opts.modelPrefix);
 
-	    File outputDir = new File(new File(opts.outputPath).getParent());
-	    if (! outputDir.exists()) {
-	    	outputDir.mkdirs();
-	    }
+		String outputDir = new File(opts.outputPath).getParent();
+		if (outputDir != null) {
+		    if (! new File(outputDir).exists()) {
+		    	new File(outputDir).mkdirs();
+		    }
+		}
 		
 		// Load test data and predict
 		timeStamp("Load data and generate predictions");
