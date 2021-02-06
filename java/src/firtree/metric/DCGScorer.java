@@ -25,8 +25,8 @@ public class DCGScorer extends MetricScorer {
 	protected static double[] logrank; // Lazy cache
 	protected static String gain_type = "exponential";
 	
-	public DCGScorer() {
-		this.k = 10;
+	public DCGScorer(int k) {
+		this.k = k;
 		// Initialize lazy cache if we have not already done so
 		if (logrank == null) {
 			logrank = new double[k]; // Test lazy cache by setting k to 2

@@ -16,8 +16,8 @@ public class NDCGScorer extends DCGScorer {
 	// Cache the ideal gain corresponding to group id
 	protected Map<String, Double> group_id_to_max_dcg;
 	
-	public NDCGScorer() {
-		super();
+	public NDCGScorer(int k) {
+		super(k);
 		group_id_to_max_dcg = new HashMap<>();
 	}
 	
@@ -109,7 +109,7 @@ public class NDCGScorer extends DCGScorer {
 	
 	static void test(String gain_type, int k, double[] true_ndcg) {
 		NDCGScorer.setGainType(gain_type);
-		NDCGScorer scorer = new NDCGScorer();
+		NDCGScorer scorer = new NDCGScorer(10);  // Cyril set k = 10 by default
 		scorer.setK(k);
 		int times = 1; // Used to test the cache of ideal gains
 		for (int i = 0; i < times; i ++) {

@@ -1092,7 +1092,10 @@ public class FirTree {
 			List<Integer> valList = attIdToValList.get(attId);
 			int min = Collections.min(valList);
 			int max = Collections.max(valList);
-			int interval = (max - min) / (valList.size() - 1);
+			int interval = 0;
+			if (valList.size() > 1) {
+				interval = (max - min) / (valList.size() - 1);
+			}
 			timeStamp(String.format("%s: %d distinct values in [%d, %d] average interval %d",
 					ainfo.idToName(attId), valList.size(), min, max, interval));
 		}

@@ -127,7 +127,11 @@ public class CoorAscentOnLeaves {
 		if (opts.metricStr.equals("gauc")) {
 			scorer = new GAUCScorer();
 		} else {
-			scorer = new NDCGScorer();
+			int k = 4;
+			if (opts.metricStr.contains("@")) {
+				k = Integer.parseInt(opts.metricStr.split("@")[1]);
+			}
+			scorer = new NDCGScorer(k);
 		}
 
 		if (opts.algorithm.equals("params")) {
@@ -216,7 +220,7 @@ public class CoorAscentOnLeaves {
 					}
 					//*/ Ablative Debug End
 					///*
-					if (verbose) {
+					if (verbose && false) {
 						System.out.printf("    #%02d %07d %07d=%07d %.16f (min)\n", j, curIndex, 
 								(int) currMin, (int) model.getMinValue(activeNode, activeAtt), scoreTrain);
 					}
@@ -272,7 +276,7 @@ public class CoorAscentOnLeaves {
 								model, rankLists, scorer, activeNode, activeAtt, maxDelta, "max");
 					}
 					//*/ Ablative Debug End
-					if (verbose) {
+					if (verbose && false) {
 						System.out.printf("      #%02d %07d %07d=%07d %.16f (max)\n", j, curIndex, 
 								(int) currMax, (int) model.getMaxValue(activeNode, activeAtt), scoreTrain);
 					}

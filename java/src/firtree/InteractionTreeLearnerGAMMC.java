@@ -631,7 +631,7 @@ public class InteractionTreeLearnerGAMMC {
 		if (opts.metricEval.equals("gauc"))
 			scorer = new GAUCScorer();
 		if (opts.metricEval.equals("ndcg"))
-			scorer = new NDCGScorer();
+			scorer = new NDCGScorer(10);
 		
 		learner.setMetric(metric);
 		learner.setLearningRate(0.01);

@@ -95,7 +95,7 @@ public class Evaluation {
 		if (opts.metricStr.equals("gauc"))
 			scorer = new GAUCScorer();
 		else
-			scorer = new NDCGScorer();
+			scorer = new NDCGScorer(10);
 		double score = scorer.score(rankLists);
 		System.out.printf("Test %s is %.4f given predictions in %s\n", 
 				scorer.name(), score, opts.outputPath);
@@ -103,7 +103,7 @@ public class Evaluation {
 	
 	static void test_calculate_ndcg_whenUnweightedData_thenAccurateNDCG(Map<String, RankList> rankLists) {
 		NDCGScorer.setGainType("linear");
-		NDCGScorer scorer = new NDCGScorer();
+		NDCGScorer scorer = new NDCGScorer(10);
 		scorer.setK(100);
 		Map<String, Double> trueNDCG = new HashMap<String, Double>();
 		trueNDCG.put("0", 0.5523531026111766);
