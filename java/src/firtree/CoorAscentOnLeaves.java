@@ -664,7 +664,7 @@ public class CoorAscentOnLeaves {
 				}
 				rankLists.get(groupId).add(instance);
 				
-				if (Math.abs(model.predict(line) - model.predict(instance)) > Math.pow(10, -10)) {
+				if (Math.abs(model.predict(line, true) - model.predict(instance)) > Math.pow(10, -10)) {
 					System.err.println("Diffferent versions of FirTree.predict are inconsistent");
 					System.exit(1);
 				}

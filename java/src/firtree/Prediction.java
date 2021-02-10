@@ -64,7 +64,7 @@ public class Prediction {
 
 		String line_test = testData.readLine();
 		while(line_test != null) {
-			double val = model.predict(line_test); 
+			double val = model.predict(line_test, false); 
 			pred_fir_out.write(val + "\n");
 			line_test = testData.readLine();
 		}
