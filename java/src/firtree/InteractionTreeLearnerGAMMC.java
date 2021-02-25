@@ -719,8 +719,8 @@ public class InteractionTreeLearnerGAMMC {
 			if (result.get().isParent) {
 				parentScore = result.get().parentScore;
 			} else {
-				timeStamp(String.format("Evaluating feature %d split %f is terminated with score %f", 
-						result.get().attIndex, result.get().splitPoint, result.get().splitScore));
+				timeStamp(String.format("Evaluating feature %s split %f is terminated with score %f", 
+						ainfo.idToName(result.get().attIndex), result.get().splitPoint, result.get().splitScore));
 				if (metric.isFirstBetter(result.get().splitScore, bestScore)) {
 					bestAtt = result.get().attIndex;
 					bestSplit = result.get().splitPoint;
