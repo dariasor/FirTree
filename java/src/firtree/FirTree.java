@@ -548,7 +548,7 @@ public class FirTree {
 		java_out.close();
 	}
 
-	public double predict(String data_str, boolean intercept) {
+	public double predict(String data_str) {
 		String[] data = data_str.split("\t");
 		if(data.length != ainfo.getColN())
 		{ 
@@ -582,13 +582,7 @@ public class FirTree {
 					val = const_val[current_index];
 				} else {
 					// predict by the model on the leaf
-					if (intercept) {
-						val = intercept_val[current_index]; // intercept
-					} else {
-						// Do not add intercept as it does not go into XQM and it does not matter in evaluation
-						val = 0.; 
-					}
-					
+					val = intercept_val[current_index]; // intercept
 					ArrayList<Integer> current_lr_attr_ids = lr_attr_ids.get(current_index);
 					ArrayList<ArrayList<Double>> current_lr_coefs = lr_coefs.get(current_index);
 					for(int i_attr = 0; i_attr < current_lr_attr_ids.size(); i_attr++){
