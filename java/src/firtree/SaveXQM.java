@@ -100,7 +100,7 @@ public class SaveXQM {
         //// <range-1> and <range-2>
         Integer[] lowerBounds = new Integer[] {-1, 0, getSplitValue(nodes[0]) + 1};
         String prefix = "firtree_[marketplace]_[query_index]_[date]";
-        String[] queryNames = new String[] {null, prefix + "_node_l", prefix + "node_r",};
+        String[] queryNames = new String[] {null, prefix + "_node_l", prefix + "_node_r",};
         for (int i = 1; i < 3; i ++) {        	
         	Element rootRange = doc.createElement(String.format("range-%d", i));
         	rootRange.appendChild(doc.createTextNode(String.format("%d:%s", lowerBounds[i], queryNames[i])));
