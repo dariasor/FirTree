@@ -25,7 +25,7 @@ public class PredictorReader {
 		String line = in.readLine();
 		String predictorName = line.substring(1, line.length() - 1).split(": ")[1];
 		Class<?> clazz = Class.forName(predictorName);
-		Predictor predictor = (Predictor) clazz.newInstance();
+		Predictor predictor = (Predictor) clazz.getDeclaredConstructor().newInstance(); //clazz.newInstance();
 		predictor.read(in);
 		in.close();
 		return predictor;
@@ -55,7 +55,7 @@ public class PredictorReader {
 		String line = in.readLine();
 		String predictorName = line.substring(1, line.length() - 1).split(": ")[1];
 		Class<?> clazz = Class.forName(predictorName);
-		Predictor predictor = (Predictor) clazz.newInstance();
+		Predictor predictor = (Predictor) clazz.getDeclaredConstructor().newInstance(); //clazz.newInstance();
 		predictor.read(in);
 		return predictor;
 	}

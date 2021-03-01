@@ -4,7 +4,7 @@
 
   <groupId>firtree</groupId>
   <artifactId>firtree</artifactId>
-  <version>2.6.1</version>
+  <version>2.7.0</version>
   <packaging>jar</packaging>
 
   <name>firtree</name>
@@ -56,6 +56,14 @@
           <descriptorRefs>
             <descriptorRef>jar-with-dependencies</descriptorRef>
           </descriptorRefs>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.8.1</version>
+        <configuration>
+          <compilerArgument>-Xlint:deprecation</compilerArgument>
         </configuration>
       </plugin>
     </plugins>

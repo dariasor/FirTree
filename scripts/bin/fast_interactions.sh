@@ -6,19 +6,20 @@ SCRIPTPATH=`dirname $SCRIPT`
 source $SCRIPTPATH/env.config
 
 VERSION=`$AG_TRAIN -version 2> /dev/null | tail -1 | cut -f3 -d ' '`
-if [ $(version $VERSION) -lt $(version "2.5.5") ]; then
-    echo "Error: Old ag_train version. Need TreeExtra version 2.5.5 or higher."
+if [ $(version $VERSION) -lt $(version "2.7.0") ]; then
+    echo "Error: Old ag_train version. Need TreeExtra version 2.7.0 or higher."
     exit 1
 fi
 
-if [ $# -eq 4 ]
+if [ $# -eq 5 ]
 then
 	ATTR_FILE=$1
 	ATTR_FS_FILE=$2
 	TRAIN_FILE=$3
 	VALID_FILE=$4
+	OTHER_PARAMS=$5
 else
-	echo "usage: fast_interactions.sh <attr> <attr.fs> <train> <valid>"
+	echo "usage: fast_interactions.sh <attr> <attr.fs> <train> <valid> <other parameters>"
 	exit 1
 fi
 
@@ -30,7 +31,7 @@ PARSE_PERFORMANCE=$PYTHON_BIN/parse_performance.py
 PARSE_INTERACTIONS=$PYTHON_BIN/parse_interactions.py
 GET_BEST_PARAMS=$PYTHON_BIN/get_best_params.py
 
-$AG_TRAIN -t $TRAIN_FILE -v $VALID_FILE -r $ATTR_FILE -s layered > /dev/null
+$AG_TRAIN -t $TRAIN_FILE -v $VALID_FILE -r $ATTR_FILE -s layered $OTHER_PARAMS > /dev/null
 
 
 while :
@@ -49,7 +50,7 @@ do
                 BEST_PARAMS=`tail -1 best_params.txt`
                 if [ $IFCONV = "True" ]
                 then
-                    $AG_EXPAND $BEST_PARAMS > /dev/null
+                    $AG_EXPAND $BEST_PARAMS $OTHER_PARAMS > /dev/null
                 else
                     $AG_SAVE $BEST_PARAMS > /dev/null
                     break
@@ -64,12 +65,18 @@ done
 $PYTHON $PARSE_PARAMS log.txt > params_fs.txt
 PARAMS_FS=`tail -1 params_fs.txt`
 
-$AG_FS -t $TRAIN_FILE -v $VALID_FILE -r $ATTR_FILE $PARAMS_FS > /dev/null
+$AG_FS -t $TRAIN_FILE -v $VALID_FILE -r $ATTR_FILE $PARAMS_FS $OTHER_PARAMS > /dev/null
 
 $PYTHON $PARSE_PERFORMANCE log.txt > params_interaction.txt
 PARAMS_INTERACTION=`tail -1 params_interaction.txt`
 
-$AG_INTERACTIONS -t $TRAIN_FILE -v $VALID_FILE -r $ATTR_FS_FILE $PARAMS_FS $PARAMS_INTERACTION > /dev/null
+$AG_INTERACTIONS \
+	-t $TRAIN_FILE \
+	-v $VALID_FILE \
+	-r $ATTR_FS_FILE \
+	$PARAMS_FS \
+	$PARAMS_INTERACTION \
+	$OTHER_PARAMS > /dev/null
 
 $PYTHON $PARSE_INTERACTIONS 
 

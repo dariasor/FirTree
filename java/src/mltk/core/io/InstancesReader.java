@@ -134,6 +134,9 @@ public class InstancesReader {
 			}
 			String[] data = line.split(delimiter);
 			Instance instance = parseDenseInstance(data, ainfo, allowMV);
+			if (ainfo.groupCol != AttrInfo.GROUP_UNSET) {
+				instance.setGroupId(data[ainfo.groupCol]);
+			}
 			if (instance != null) {
 				instances.add(instance);
 			}
@@ -151,10 +154,19 @@ public class InstancesReader {
 	 * @param ainfo attribute information containing the class index.
 	 * @return a dense instance from strings.
 	 */
-	private static Instance parseDenseInstance(String[] data, AttrInfo ainfo, boolean allowMV) {
-		double[] vector = new double[ainfo.attributes.size()];
-		for (int i = 0; i < vector.length; i++) {
-			int col = ainfo.attributes.get(i).getColumn();
+	public static Instance parseDenseInstance(String[] data, AttrInfo ainfo, boolean allowMV) {
+		List<Integer> attIdList = new ArrayList<>();
+		for (int i = 0; i < ainfo.attributes.size(); i ++) {
+			attIdList.add(i);
+		}
+		return parseDenseInstance(data, ainfo, attIdList, allowMV);
+	}
+	
+	public static Instance parseDenseInstance(String[] data, AttrInfo ainfo, List<Integer> attIdList, boolean allowMV) {
+		double[] vector = new double[attIdList.size()];
+		for (int i = 0; i < attIdList.size(); i++) {
+			int attId = attIdList.get(i);
+			int col = ainfo.attributes.get(attId).getColumn();
 			if (col >= data.length)
 			{
 				System.err.println("Error: There are more attributes in the attribute file than columns in the data.");
@@ -174,7 +186,7 @@ public class InstancesReader {
 					vector[i] = Double.parseDouble(data[col]); 
 				}
 			} catch(java.lang.NumberFormatException e) {
-				System.err.println("Error: The column for an active attribute " + ainfo.attributes.get(i).getName() + " contains a text value " + data[col]);
+				System.err.println("Error: The column for an active attribute " + ainfo.attributes.get(attId).getName() + " contains a text value " + data[col]);
 				System.exit(1);
 			}
 		}

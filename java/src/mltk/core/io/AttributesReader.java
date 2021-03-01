@@ -88,6 +88,14 @@ public class AttributesReader {
 			} else {
 				att.setIndex(i);
 				ainfo.attributes.add(att);
+				
+				// It is not allowed to use leaf features for split
+				if (line.indexOf("(leaf)") != -1)
+					ainfo.leafNames.add(att.getName());
+				
+				// It is only allowed to use split features for split
+				if (line.indexOf("(split)") != -1)
+					ainfo.splitNames.add(att.getName());
 			}
 			ainfo.nameToId.put(aname, att.getIndex());
 		}

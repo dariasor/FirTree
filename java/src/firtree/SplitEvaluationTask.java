@@ -8,6 +8,7 @@ import mltk.predictor.evaluation.Metric;
 import mltk.predictor.gam.GAMLearner;
 import mltk.util.tuple.Triple;
 
+@Deprecated
 public class SplitEvaluationTask implements Callable<Triple<Integer, Double, Double>> {
 
 	InteractionTreeLearnerGAMMC app;
@@ -48,8 +49,8 @@ public class SplitEvaluationTask implements Callable<Triple<Integer, Double, Dou
 //						trainSet, validSet, learner, metric, attIndex, split, splitPoint);
 				
 				// Memory efficient split evaluation
-				splitScore = app.evaluateSplitInPlace(tmpDir, 
-						trainSet, validSet, learner, metric, attIndex, split, splitPoint);
+//				splitScore = app.evaluateSplitInPlace(tmpDir, 
+//						trainSet, validSet, learner, metric, attIndex, split, splitPoint);
 				
 				long stop = System.currentTimeMillis();
 				long elapse = (stop - start) / (1000 * 60) + 1;

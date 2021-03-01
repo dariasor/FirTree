@@ -16,8 +16,8 @@ import mltk.core.io.AttributesReader;
 public class Prediction {
 	
 	static class Options {
-		@Argument(name = "-d", description = "model directory", required = true)
-		String dir = ""; //usually path up to "FirTree" inclusive
+		@Argument(name="-l", description="(cropped) treelog.txt which specifies a tree structure", required=true)
+		String logPath = "";
 		
 		@Argument(name = "-r", description = "attribute file", required = true)
 		String attPath = "";
@@ -29,13 +29,15 @@ public class Prediction {
 		String testPath = "";		
 		
 		@Argument(name = "-y", description = "polynomial degree")
-		int poly_degree = 2;
-
+		int polyDegree = 2;
+		
+		@Argument(name = "-m", description = "Prefix of name of output parameter files (default: model)")
+		String modelPrefix = "model";
 	}
 
 	public static void main(String[] args) throws Exception {
 		Options opts = new Options();
-		CmdLineParser parser = new CmdLineParser(RegressionOnLeaves.class, opts);
+		CmdLineParser parser = new CmdLineParser(Prediction.class, opts);
 		try {
 			parser.parse(args);
 		} catch (IllegalArgumentException e) {
@@ -46,9 +48,15 @@ public class Prediction {
 		long start = System.currentTimeMillis();
 		timeStamp("Load model");
 		AttrInfo ainfo = AttributesReader.read(opts.attPath);
-		
-		FirTree model = new FirTree(ainfo, opts.dir, opts.poly_degree);
+		FirTree model = new FirTree(ainfo, opts.logPath, opts.polyDegree, opts.modelPrefix);
 
+		String outputDir = new File(opts.outputPath).getParent();
+		if (outputDir != null) {
+		    if (! new File(outputDir).exists()) {
+		    	new File(outputDir).mkdirs();
+		    }
+		}
+		
 		// Load test data and predict
 		timeStamp("Load data and generate predictions");
 		BufferedReader testData = new BufferedReader(new FileReader(opts.testPath), 65535);

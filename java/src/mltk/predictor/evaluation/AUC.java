@@ -70,36 +70,6 @@ public class AUC extends Metric {
 		}
 		return eval(a);
 	}
-
-	@Override
-	public double eval(double[] preds, double[] targets, double[] weights) {
-		DoubleTriple[] a = new DoubleTriple[preds.length];
-		for (int i = 0; i < preds.length; i++) {
-			a[i] = new DoubleTriple(preds[i], targets[i], weights[i]);
-		}
-		return eval(a);
-	}
-
-	@Override
-	public double eval(double[] preds, Instances instances, Pointers pointers) {
-		DoubleTriple[] a = new DoubleTriple[preds.length];
-		for (int i = 0; i < preds.length; i++) {
-			Instance instance = instances.get(pointers.get(i).getIndex());
-			a[i] = new DoubleTriple(preds[i], instance.getTarget(), instance.getWeight());
-		}
-		return eval(a);
-	}
-	
-	@Override
-	public double eval(double[] preds, Instances instances) {
-//		DoublePair[] a = new DoublePair[preds.length];
-		DoubleTriple[] a = new DoubleTriple[preds.length];
-		for (int i = 0; i < preds.length; i++) {
-//			a[i] = new DoublePair(preds[i], instances.get(i).getTarget());
-			a[i] = new DoubleTriple(preds[i], instances.get(i).getTarget(), instances.get(i).getWeight());
-		}
-		return eval(a);
-	}
 	
 	protected double eval(DoublePair[] a) {
 		System.out.println("ERROR: do not support weights and use other eval instead");
@@ -147,9 +117,58 @@ public class AUC extends Metric {
 		return area;
 	}
 
+	@Override
+	public double eval(double[] preds, double[] targets, double[] weights) {
+		DoubleTriple[] a = new DoubleTriple[preds.length];
+		for (int i = 0; i < preds.length; i++) {
+			a[i] = new DoubleTriple(preds[i], targets[i], weights[i]);
+		}
+		return eval(a);
+	}
+
+	@Override
+	public double eval(double[] preds, Instances instances, Pointers pointers) {
+		DoubleTriple[] a = new DoubleTriple[preds.length];
+		for (int i = 0; i < preds.length; i++) {
+			Instance instance = instances.get(pointers.get(i).getIndex());
+			a[i] = new DoubleTriple(preds[i], instance.getTarget(), instance.getWeight());
+		}
+		return eval(a);
+	}
+	
+	@Override
+	public double eval(double[] preds, Instances instances) {
+//		DoublePair[] a = new DoublePair[preds.length];
+		DoubleTriple[] a = new DoubleTriple[preds.length];
+		for (int i = 0; i < preds.length; i++) {
+//			a[i] = new DoublePair(preds[i], instances.get(i).getTarget());
+			a[i] = new DoubleTriple(preds[i], instances.get(i).getTarget(), instances.get(i).getWeight());
+		}
+		return eval(a);
+	}
+	
+	// TODO: Deal with tied items
 	protected double eval(DoubleTriple[] a) {
 		Arrays.sort(a, new DoubleTripleComparator());
 
+		// See https://github.com/dariasor/ag_scripts/blob/master/General/GroupROC_Dir/group_roc.cpp
+		double[] fraction = new double[a.length];
+		int item = 0;
+		while (item < a.length) {
+			int begin = item;
+			double posV = 0;
+			double tieV = 0;
+			for (; (item < a.length) && (a[item].v1 == a[begin].v1); item ++) {
+				posV += a[item].v2 * a[item].v3; 
+				tieV += a[item].v3;
+			}
+
+			double curFrac = posV / tieV;
+			for (int i = begin; i < item; i ++) {
+				fraction[i] = curFrac;
+			}
+		}
+		
 		double tp = 0; // Variable tp is true positive, equivalent to tt
 		double fp = 0; // Variable fp is false positive, equivalent to ft
 		double tp_fn = 0; // Variable fn is false negative, equivalent to tf
@@ -167,14 +186,20 @@ public class AUC extends Metric {
 		while (i >= 0) {
 			double threshold = a[i].v1;
 			do {
-				tp += a[i].v2 * a[i].v3;
-				fp += (1 - a[i].v2) * a[i].v3;
+				tp += fraction[i] * a[i].v3; // a[i].v2 * a[i].v3;
+				fp += (1 - fraction[i]) * a[i].v3; // (1 - a[i].v2) * a[i].v3;
 				i --;
 			} while (i >= 0 && a[i].v1 == threshold);
 
-			// TODO: handle divide by zero here, also in eval(DoublePair[])
+			// TODO: handle divide by 0 here and in eval(DoublePair[])
 			double tpr = tp / tp_fn;
 			double fpr = fp / fp_tn;
+			/*//
+			if (tp_fn > Math.pow(10, -10))
+				tpr = tp / tp_fn;
+			if (fp_tn > Math.pow(10, -10))
+				fpr = fp / fp_tn;
+			*///
 
 			area += 0.5 * (tpr + tprPrev) * (fpr - fprPrev);
 			tprPrev = tpr;
@@ -192,11 +217,18 @@ public class AUC extends Metric {
 	public static void main(String[] args) throws Exception {
 		// Consistent with sklearn.metrics.roc_auc_score(y_true, y_score, sample_weight)
 		DoubleTriple[] a = new DoubleTriple[5];
+		/*//
 		a[0] = new DoubleTriple(0.3, 0, 0.9);
 		a[1] = new DoubleTriple(0.7, 1, 0.3);
 		a[2] = new DoubleTriple(0.5, 1, 0.1);
 		a[3] = new DoubleTriple(0.7, 0, 0.5);
 		a[4] = new DoubleTriple(0.5, 1, 0.7);
+		*///
+		a[0] = new DoubleTriple(0.3, 0, 1.);
+		a[1] = new DoubleTriple(0.7, 0, 1.);
+		a[2] = new DoubleTriple(0.5, 0, 1.);
+		a[3] = new DoubleTriple(0.7, 0, 1.);
+		a[4] = new DoubleTriple(0.5, 0, 1.);
 		AUC metric = new AUC();
 		double auc = metric.eval(a);
 		System.out.printf("AUC=%.6f\n", auc);

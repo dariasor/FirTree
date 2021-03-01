@@ -107,7 +107,7 @@ public class RegressionTree implements Regressor {
 	public void read(BufferedReader in) throws Exception {
 		in.readLine();
 		Class<?> clazz = Class.forName(in.readLine());
-		root = (RegressionTreeNode) clazz.newInstance();
+		root = (RegressionTreeNode) clazz.getDeclaredConstructor().newInstance(); //clazz.newInstance();
 		root.read(in);
 	}
 

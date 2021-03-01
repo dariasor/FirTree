@@ -3,7 +3,7 @@ package mltk.core;
 /**
  * Class for instances.
  * 
- * @author Yin Lou
+ * @author Yin Lou, modified by Xiaojie Wang
  * 
  */
 public class Instance implements Copyable<Instance> {
@@ -12,6 +12,14 @@ public class Instance implements Copyable<Instance> {
 	protected double[] target;
 	protected double weight;
 
+	// Instances with the same group id are collectively called a query group
+	protected String groupId = null;
+	
+	// XW. Used for evaluation
+	public Instance(double target) {
+		this(new double[0], target, 1.0);
+	}
+	
 	/**
 	 * Constructs a dense instance from values, target and weight.
 	 * 
@@ -121,6 +129,8 @@ public class Instance implements Copyable<Instance> {
 		this.vector = instance.vector;
 		this.weight = instance.weight;
 		this.target = instance.target;
+		
+		this.groupId = instance.groupId;
 	}
 
 	/**
@@ -305,4 +315,11 @@ public class Instance implements Copyable<Instance> {
 		return sb.toString();
 	}
 
+	public String getGroupId() {
+		return groupId;
+	}
+
+	public void setGroupId(String groupId) {
+		this.groupId = groupId;
+	}
 }
