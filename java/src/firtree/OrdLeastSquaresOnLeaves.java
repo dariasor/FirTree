@@ -31,12 +31,12 @@ public class OrdLeastSquaresOnLeaves {
 		@Argument(name = "-r", description = "attribute file", required = true)
 		String attPath = "";
 
-		@Argument(name = "-y", description = "polynomial degree")
-		int polyDegree = 2;
-		
 		// The group id is used for subsampling if necessary
 		@Argument(name = "-g", description = "name of the attribute with the group id")
 		String group = "";
+		
+		@Argument(name = "-y", description = "polynomial degree")
+		int polyDegree = 2;
 		
 		@Argument(name = "-m", description = "Prefix of name of output parameter files (default: ols)")
 		String modelPrefix = "ols_y2";

@@ -21,18 +21,18 @@ public class Prediction {
 		
 		@Argument(name = "-r", description = "attribute file", required = true)
 		String attPath = "";
-		
-		@Argument(name = "-o", description = "output file", required = true)
-		String outputPath = ""; 
-		
-		@Argument(name = "-test", description = "test set file", required = true)
-		String testPath = "";		
-		
+
 		@Argument(name = "-y", description = "polynomial degree")
 		int polyDegree = 2;
 		
 		@Argument(name = "-m", description = "Prefix of name of output parameter files (default: model)")
 		String modelPrefix = "model";
+
+		@Argument(name = "-test", description = "test set file", required = true)
+		String testPath = "";
+		
+		@Argument(name = "-o", description = "output file", required = true)
+		String outputPath = ""; 
 	}
 
 	public static void main(String[] args) throws Exception {

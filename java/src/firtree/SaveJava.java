@@ -17,11 +17,11 @@ public class SaveJava {
 		@Argument(name = "-y", description = "polynomial degree", required = true)
 		int polyDegree = 2;
 
-		@Argument(name = "-o", description = "output file with java code", required = true)
-		String outputPath = "";
-
 		@Argument(name = "-m", description = "Prefix of name of output parameter files (default: model)")
 		String modelPrefix = "model";
+
+		@Argument(name = "-o", description = "output file with java code", required = true)
+		String outputPath = "";
 	}
 
 	public static void main(String[] args) throws Exception {

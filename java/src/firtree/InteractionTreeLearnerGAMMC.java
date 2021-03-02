@@ -108,9 +108,6 @@ public class InteractionTreeLearnerGAMMC {
 		@Argument(name = "-t", description = "training set", required = true)
 		String trainPath = "";
 		
-		@Argument(name = "-l", description = "min leaf size (default: 70)")
-		int leafSize = 70;
-	
 		@Argument(name = "-g", description = "name of the attribute with the group id (default: \"\")")
 		String group = "None";
 		
@@ -120,15 +117,17 @@ public class InteractionTreeLearnerGAMMC {
 		@Argument(name = "-e", description = "(gauc|ndcg) - metric to evaluate splits (default: gauc)")
 		String metricEval = "gauc";
 		
-		@Argument(name = "-n", description = "number of parallel split evaluations (default: #cores)")
-		int nSplitEvaluation = Runtime.getRuntime().availableProcessors();
-		
-		@Argument(name = "-m", description = "max number of leaves(default: 11)")
-		int maxLeaves = 11;
-		
 		@Argument(name = "-h", description = "max tree height(default: 6)")
 		int maxHeight = 6;
 
+		@Argument(name = "-n", description = "number of parallel split evaluations (default: #cores)")
+		int nSplitEvaluation = Runtime.getRuntime().availableProcessors();
+		
+		@Argument(name = "-l", description = "min leaf size (default: 70)")
+		int leafSize = 70;
+
+		@Argument(name = "-m", description = "max number of leaves(default: 11)")
+		int maxLeaves = 11;
 	}
 	
 	private Options opts;

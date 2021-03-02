@@ -46,25 +46,25 @@ public class CoorAscentOnLeaves {
 		@Argument(name = "-r", description = "attribute file", required = true)
 		String attPath = "";
 
-		@Argument(name = "-y", description = "polynomial degree")
-		int polyDegree = 2;
-		
 		// This argument comes from InteractionTreeLearnerGAMMC but is required
 		@Argument(name = "-g", description = "name of the attribute with the group id", required = true)
 		String group = "";
 		
+		@Argument(name = "-y", description = "polynomial degree")
+		int polyDegree = 2;
+		
 		@Argument(name = "-m", description = "Prefix of name of output parameter files (default: ca)")
 		String modelPrefix = "ca_params_y2";
-		
-		// This argument comes from InteractionTreeLearnerGAMMC
-		@Argument(name = "-c", description = "(gauc|ndcg) - metric to optimize (default: gauc)")
-		String metricStr = "gauc";
 		
 		@Argument(name = "-a", description = "(params|minmax)")
 		String algorithm = "params";
 		
 		@Argument(name = "-i", description = "Initialize model parameters by OLS or an existing model")
 		String modelInitial = "";
+
+		// This argument comes from InteractionTreeLearnerGAMMC
+		@Argument(name = "-c", description = "(gauc|ndcg) - metric to optimize (default: gauc)")
+		String metricStr = "gauc";
 	}
 	
 	public static void main(String[] args) throws Exception {
