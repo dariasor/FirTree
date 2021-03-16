@@ -40,11 +40,7 @@ public class NDCGScorer extends DCGScorer {
 		if (max_dcg < Math.pow(10, -10))
 			return 0.;
 
-		double dcg = getDCG(targets, predictions);
-		/*// TODO: Debug
-		System.out.printf("\tDCG=%f IDCG=%f\n", dcg, max_dcg);
-		*/
-		
+		double dcg = getDCG(targets, predictions);		
 		return dcg / max_dcg;
 	}
 	

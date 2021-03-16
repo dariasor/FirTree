@@ -282,8 +282,6 @@ public class InteractionTreeLearnerGAMMC {
 			leafN++;
 		}
 		
-		// q.dequeue(); // TODO: Only create the root node
-		
 		while (!q.isEmpty()) {
 			InteractionTreeNode node = q.dequeue();
 			
@@ -573,7 +571,6 @@ public class InteractionTreeLearnerGAMMC {
 			entry.delete();
 		}
 
-		// TODO: No need to run ag_interactions in fast_interactions
 		//3a. If number of leaves or height limit reached, stop here.
 		if (tree_size_limit_reached)
 		{
@@ -610,14 +607,10 @@ public class InteractionTreeLearnerGAMMC {
 		List<String> candidateFeatureNames = gcret.v1;
 		String candType = gcret.v2; 
 		
-		// TODO: Train parent GAM and child GAMs in parallel
-		// 5. Build a GAM for parent
 		// 5. Prepare train set and valid set for GAM
  		Instances trainSet = InstancesReader.read(ainfo, train, "\t+", true);
 		Instances validSet = InstancesReader.read(ainfo, valid, "\t+", true);
 
-		//timeStamp("Build a GAM for the parent node.");
-		
 		GAMLearner learner = new GAMLearner();
 		Metric metric;
 		if(regression == true)
@@ -629,8 +622,13 @@ public class InteractionTreeLearnerGAMMC {
 		MetricScorer scorer = null;
 		if (opts.metricEval.equals("gauc"))
 			scorer = new GAUCScorer();
-		if (opts.metricEval.equals("ndcg"))
-			scorer = new NDCGScorer(10);
+		if (opts.metricEval.equals("ndcg")) {
+			int k = 4;
+			if (opts.metricEval.contains("@")) {
+				k = Integer.parseInt(opts.metricEval.split("@")[1]);
+			}
+			scorer = new NDCGScorer(k);
+		}
 		
 		learner.setMetric(metric);
 		learner.setLearningRate(0.01);
@@ -661,8 +659,8 @@ public class InteractionTreeLearnerGAMMC {
 			Feature feature = Feature.read(tmpDir + File.separator + "AG_PLOTS" + File.separator + key + ".effect.txt");
 			candidateFeatures.add(feature);
 		}
-
-		// 8. Evaluate splits with parent GAM and child GAMs
+		
+		// 8.1 Build a parent GAM and child GAMs in parallel
 		timeStamp("Evaluate splits.");
 		int bestAtt = -1;
 		double bestSplit = -1;
@@ -712,7 +710,8 @@ public class InteractionTreeLearnerGAMMC {
 		}
 		executor.shutdown();
 		while (! executor.isTerminated());
-		
+
+		// 8.2 Evaluate all splits and select the best one
 		double parentScore = Double.NaN;
 		for (Future<GAMLearningResult> result : results) {
 			if (result.get().isParent) {
@@ -934,16 +933,9 @@ public class InteractionTreeLearnerGAMMC {
 			
 			for (RankList rankList : rankLists.values()) {
 				rankList.setWeight();
-				
-				// TODO: Remove
-				if (Math.abs(rankList.getWeight() - 1.) > Math.pow(10, -10)) {
-					System.err.println("InteractionTreeLearnerGAMMC TODO");
-					System.exit(1);
-				}
 			}
 			splitScore = scorer.score(rankLists);
 			
-			// TODO: Remove
 			double avgSize = 0.;
 			for (RankList rankList : rankLists.values())
 				avgSize += rankList.size();

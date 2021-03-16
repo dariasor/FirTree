@@ -145,16 +145,10 @@ public class GAMLearningTask implements Callable<GAMLearningResult> {
 						}
 						for (RankList rankList : rankLists.values()) {
 							rankList.setWeight();
-							
-							// TODO: Remove
-							if (Math.abs(rankList.getWeight() - 1.) > Math.pow(10, -10)) {
-								System.err.println("GAMLearningTask TODO");
-								System.exit(1);
-							}
 						}
 						parentScore = scorer.score(rankLists);
 						
-						// TODO: Remove
+						// See comment in InteractionTreeLearnerGAMMC.evaluateSplitInPlace
 						double avgSize = 0.;
 						for (RankList rankList : rankLists.values())
 							avgSize += rankList.size();
