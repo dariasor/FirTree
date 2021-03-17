@@ -128,6 +128,9 @@ public class InteractionTreeLearnerGAMMC {
 
 		@Argument(name = "-m", description = "max number of leaves(default: 11)")
 		int maxLeaves = 11;
+
+		@Argument(name = "-s", description = "(0|1) subsampling method wrt groups: 0 - sample groups, 1 - sample within each group (default: 0)")
+		int group_method = 0;
 	}
 	
 	private Options opts;
@@ -440,7 +443,7 @@ public class InteractionTreeLearnerGAMMC {
 			
 			double portion_train = (double) train_size / data_size;
 			double portion_valid = (double) valid_size /  data_size;
-			runProcess(dir, RND, "--input " + dtaAG + " --stem fir --group-method 1 --group " + group_col + 
+			runProcess(dir, RND, "--input " + dtaAG + " --stem fir --group-method " + opts.group_method + " --group " + group_col + 
 							" --valid " + portion_valid + " --train " + portion_train + " --rand " + seed);
 		} else 
 		{			
@@ -455,7 +458,7 @@ public class InteractionTreeLearnerGAMMC {
 			double portion_zero_valid = zero_valid_size / (double) zero_size;
 			double portion_nonzero_valid = nonzero_valid_size / (double) nonzero_size;
 			
-			runProcess(dir, RND, "--input " + dtaAG + " --stem fir --group-method 1 --group " + group_col + " --target " + tar_col +
+			runProcess(dir, RND, "--input " + dtaAG + " --stem fir --group-method " + opts.group_method + " --group " + group_col + " --target " + tar_col +
 					" --valid " + portion_nonzero_valid + " --train " + portion_nonzero_train + 
 					" --valid-zero " + portion_zero_valid + " --train-zero " + portion_zero_train + " --rand " + seed);		
 		}	
