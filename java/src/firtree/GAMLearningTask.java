@@ -5,13 +5,13 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
-import firtree.metric.MetricScorer;
+import firtree.metric.ListwiseMetric;
 import firtree.utilities.RankList;
 import mltk.core.Instance;
 import mltk.core.Instances;
 import mltk.core.Pointer;
 import mltk.core.Pointers;
-import mltk.predictor.evaluation.Metric;
+import mltk.predictor.evaluation.PointwiseMetric;
 import mltk.predictor.gam.GAM;
 import mltk.predictor.gam.GAMLearner;
 
@@ -23,8 +23,8 @@ public class GAMLearningTask implements Callable<GAMLearningResult> {
 	Instances trainSet;
 	Instances validSet;
 	GAMLearner learner;
-	Metric metric;
-	MetricScorer scorer;
+	PointwiseMetric ptMetric;
+	ListwiseMetric lMetric;
 	int attIndex;
 	String featureName;
 	FeatureSplit split;
@@ -40,8 +40,8 @@ public class GAMLearningTask implements Callable<GAMLearningResult> {
 			Instances trainSet, 
 			Instances validSet, 
 			GAMLearner learner, 
-			Metric metric,
-			MetricScorer scorer
+			PointwiseMetric ptMetric,
+			ListwiseMetric lMetric
 			) {
 		this.isParent = true;
 		this.app = app;
@@ -49,8 +49,8 @@ public class GAMLearningTask implements Callable<GAMLearningResult> {
 		this.trainSet = trainSet;
 		this.validSet = validSet;
 		this.learner = learner;
-		this.metric = metric;
-		this.scorer = scorer;
+		this.ptMetric = ptMetric;
+		this.lMetric = lMetric;
 	}
 	
 	public GAMLearningTask(
@@ -59,8 +59,8 @@ public class GAMLearningTask implements Callable<GAMLearningResult> {
 			Instances trainSet, 
 			Instances validSet, 
 			GAMLearner learner, 
-			Metric metric, 
-			MetricScorer scorer,
+			PointwiseMetric ptMetric, 
+			ListwiseMetric lMetric,
 			int attIndex, 
 			String featureName, 
 			FeatureSplit split, 
@@ -72,8 +72,8 @@ public class GAMLearningTask implements Callable<GAMLearningResult> {
 		this.trainSet = trainSet;
 		this.validSet = validSet;
 		this.learner = learner;
-		this.metric = metric;
-		this.scorer = scorer;
+		this.ptMetric = ptMetric;
+		this.lMetric = lMetric;
 		this.attIndex = attIndex;
 		this.featureName = featureName;
 		this.split = split;
@@ -119,7 +119,7 @@ public class GAMLearningTask implements Callable<GAMLearningResult> {
 								);
 					}
 					
-					if (scorer == null) {
+					if (lMetric == null) {
 						double[] targetsValid = new double[validSet.size()];
 						double[] predsValid = new double[validSet.size()];
 						double[] weightsValid = new double[validSet.size()];
@@ -130,7 +130,7 @@ public class GAMLearningTask implements Callable<GAMLearningResult> {
 							weightsValid[vNo] = instance.getWeight();
 							vNo++;
 						}
-						parentScore = metric.eval(predsValid, targetsValid, weightsValid);
+						parentScore = ptMetric.eval(predsValid, targetsValid, weightsValid);
 					} else {
 						Map<String, RankList> rankLists = new HashMap<String, RankList>();
 						for (Instance allIns : validSet) {
@@ -145,16 +145,10 @@ public class GAMLearningTask implements Callable<GAMLearningResult> {
 						}
 						for (RankList rankList : rankLists.values()) {
 							rankList.setWeight();
-							
-							// TODO: Remove
-							if (Math.abs(rankList.getWeight() - 1.) > Math.pow(10, -10)) {
-								System.err.println("GAMLearningTask TODO");
-								System.exit(1);
-							}
 						}
-						parentScore = scorer.score(rankLists);
+						parentScore = lMetric.score(rankLists);
 						
-						// TODO: Remove
+						// See comment in InteractionTreeLearnerGAMMC.evaluateSplitInPlace
 						double avgSize = 0.;
 						for (RankList rankList : rankLists.values())
 							avgSize += rankList.size();
@@ -178,8 +172,8 @@ public class GAMLearningTask implements Callable<GAMLearningResult> {
 							trainSet, 
 							validSet, 
 							learner, 
-							metric, 
-							scorer,
+							ptMetric, 
+							lMetric,
 							attIndex, 
 							split, 
 							splitPoint

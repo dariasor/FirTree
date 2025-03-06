@@ -3,7 +3,7 @@ package mltk.predictor.evaluation;
 /**
  * Factory class for creating metrics.
  *  
- * @author Yin Lou
+ * @author Yin Lou, modified by Xiaojie Wang
  *
  */
 public class MetricFactory {
@@ -14,8 +14,8 @@ public class MetricFactory {
 	 * @param name the metric name.
 	 * @return the metric.
 	 */
-	public static Metric getMetric(String name) {
-		Metric metric = null;
+	public static PointwiseMetric getMetric(String name) {
+		PointwiseMetric metric = null;
 		if (name.startsWith("a")) {
 			metric = new AUC();
 		} else if (name.startsWith("c")) {

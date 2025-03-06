@@ -6,18 +6,18 @@
 package firtree;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
 import java.util.*;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import mltk.cmdline.Argument;
 import mltk.cmdline.CmdLineParser;
 import mltk.core.io.AttrInfo;
 import mltk.core.io.AttributesReader;
-import smile.regression.*;
+import smile.regression.OLS;
 
 public class OrdLeastSquaresOnLeaves {
 
@@ -112,6 +112,13 @@ public class OrdLeastSquaresOnLeaves {
 
 			for(String line = br_dta.readLine(); line != null; line = br_dta.readLine()) {
 				String[] data = line.split("\t+");
+				
+				if (data.length != ainfo.getColN()) {
+					System.err.printf("Number of columns in data file %s (%d) is not equal to attr file %s (%d)\n", 
+							dataPath, data.length, opts.attPath, ainfo.getColN());
+					System.err.printf("See in data file this line `%s`\n", line);
+					System.exit(1);
+				}
 
 				if (crash) {
 					// Skip the group ids that are not subsampled, i.e., not included in the set
@@ -176,6 +183,11 @@ public class OrdLeastSquaresOnLeaves {
 					}
 				}
 			}
+			
+			// Ignore WARNING from com.github.fommil.netlib
+			for (Handler handler: Logger.getLogger("").getHandlers()) {
+			    handler.setLevel(Level.SEVERE);
+			}				
 
 			// Setting the last parameter to True to use SVD decomposition as part of the regression
 			OLS ols_trans = new OLS(xMat_trans, y_double, true);

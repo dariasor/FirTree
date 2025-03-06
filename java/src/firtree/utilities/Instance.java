@@ -2,12 +2,11 @@ package firtree.utilities;
 
 import java.util.Map;
 
-import mltk.core.io.AttrInfo;
-
 /**
  * Extends {@link mltk.core.Instance} to be used in the coordinate ascent algorithm
  * 
  * @author Xiaojie Wang
+ * 
  */
 public class Instance extends mltk.core.Instance {
 

@@ -15,7 +15,7 @@ import mltk.util.tuple.DoubleTriple;
  * @author Yin Lou, modified by Xiaojie Wang
  *
  */
-public class AUC extends Metric {
+public class AUC extends PointwiseMetric {
 
 	private class DoublePairComparator implements Comparator<DoublePair> {
 

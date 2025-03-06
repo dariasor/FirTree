@@ -1,18 +1,18 @@
 package mltk.predictor;
 
 import mltk.core.Instances;
-import mltk.predictor.evaluation.Metric;
+import mltk.predictor.evaluation.PointwiseMetric;
 
 /**
  * Class for holdout validated learners.
  * 
- * @author Yin Lou
+ * @author Yin Lou, modified by Xiaojie Wang
  *
  */
 public abstract class HoldoutValidatedLearner extends Learner {
 
 	protected Instances validSet;
-	protected Metric metric;
+	protected PointwiseMetric metric;
 	
 	/**
 	 * Returns the validation set.
@@ -37,7 +37,7 @@ public abstract class HoldoutValidatedLearner extends Learner {
 	 * 
 	 * @return the metric.
 	 */
-	public Metric getMetric() {
+	public PointwiseMetric getMetric() {
 		return metric;
 	}
 
@@ -46,7 +46,7 @@ public abstract class HoldoutValidatedLearner extends Learner {
 	 * 
 	 * @param metric the metric.
 	 */
-	public void setMetric(Metric metric) {
+	public void setMetric(PointwiseMetric metric) {
 		this.metric = metric;
 	}
 	

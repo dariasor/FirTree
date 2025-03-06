@@ -19,7 +19,7 @@ import mltk.predictor.Bagging;
 import mltk.predictor.BoostedEnsemble;
 import mltk.predictor.HoldoutValidatedLearner;
 import mltk.predictor.Regressor;
-import mltk.predictor.evaluation.Metric;
+import mltk.predictor.evaluation.PointwiseMetric;
 import mltk.predictor.evaluation.MetricFactory;
 import mltk.predictor.function.CompressionUtils;
 import mltk.predictor.function.Function1D;
@@ -1016,7 +1016,7 @@ public class GAMLearner extends HoldoutValidatedLearner {
 		Options opts = new Options();
 		CmdLineParser parser = new CmdLineParser(GAMLearner.class, opts);
 		Task task = null;
-		Metric metric = null;
+		PointwiseMetric metric = null;
 		try {
 			parser.parse(args);
 			task = Task.getEnum(opts.task);

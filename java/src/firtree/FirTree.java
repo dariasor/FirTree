@@ -1071,12 +1071,21 @@ public class FirTree {
 	}
 	
 	Map<Integer, Set<Integer>> attIdToValSet = new HashMap<>();
-	public void addAttIdToValSet(List<Integer> attIdList, String[] data) {
+	public void addAttIdToValSet(List<Integer> attIdList, String[] data, String dataPath, int i) {
 		for (Integer attId : attIdList) {
 			if (! attIdToValSet.containsKey(attId)) {
 				attIdToValSet.put(attId, new HashSet<>());
 			}
-			attIdToValSet.get(attId).add(Integer.parseInt(data[ainfo.idToCol(attId)]));
+			String str = data[ainfo.idToCol(attId)];
+			int value = 0;
+			try {
+				value = Integer.parseInt(str);
+			} catch (NumberFormatException e) {
+				System.out.printf("Column %s has a non-int value %s at row %d (starting from 0) in file %s\n", 
+						ainfo.idToName(attId), str, i, dataPath);
+				System.exit(1);
+			}
+			attIdToValSet.get(attId).add(value);
 		}
 	}
 	

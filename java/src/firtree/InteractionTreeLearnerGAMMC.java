@@ -7,9 +7,9 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
-import firtree.metric.GAUCScorer;
-import firtree.metric.MetricScorer;
-import firtree.metric.NDCGScorer;
+import firtree.metric.GAUC;
+import firtree.metric.ListwiseMetric;
+import firtree.metric.NDCG;
 import firtree.utilities.RankList;
 import mltk.cmdline.Argument;
 import mltk.cmdline.CmdLineParser;
@@ -19,7 +19,7 @@ import mltk.core.Pointer;
 import mltk.core.Pointers;
 import mltk.core.io.*;
 import mltk.predictor.evaluation.AUC;
-import mltk.predictor.evaluation.Metric;
+import mltk.predictor.evaluation.PointwiseMetric;
 import mltk.predictor.evaluation.RMSE;
 import mltk.predictor.gam.GAMLearner;
 import mltk.predictor.gam.GAM;
@@ -114,8 +114,8 @@ public class InteractionTreeLearnerGAMMC {
 		@Argument(name = "-c", description = "(rms|roc) - metric to train GAMs in splits (default: roc)")
 		String metricStr = "roc";
 		
-		@Argument(name = "-e", description = "(gauc|ndcg) - metric to evaluate splits (default: gauc)")
-		String metricEval = "gauc";
+		@Argument(name = "-e", description = "(gauc|ndcg) - metric to evaluate splits (default: \"\")")
+		String metricEval = "";
 		
 		@Argument(name = "-h", description = "max tree height(default: 6)")
 		int maxHeight = 6;
@@ -128,6 +128,9 @@ public class InteractionTreeLearnerGAMMC {
 
 		@Argument(name = "-m", description = "max number of leaves(default: 11)")
 		int maxLeaves = 11;
+
+		@Argument(name = "-s", description = "(0|1) subsampling method wrt groups: 0 - sample groups, 1 - sample within each group (default: 0)")
+		int group_method = 0;
 	}
 	
 	private Options opts;
@@ -281,8 +284,6 @@ public class InteractionTreeLearnerGAMMC {
 			q.enqueue(root);
 			leafN++;
 		}
-		
-		// q.dequeue(); // TODO: Only create the root node
 		
 		while (!q.isEmpty()) {
 			InteractionTreeNode node = q.dequeue();
@@ -442,7 +443,7 @@ public class InteractionTreeLearnerGAMMC {
 			
 			double portion_train = (double) train_size / data_size;
 			double portion_valid = (double) valid_size /  data_size;
-			runProcess(dir, RND, "--input " + dtaAG + " --stem fir --group-method 1 --group " + group_col + 
+			runProcess(dir, RND, "--input " + dtaAG + " --stem fir --group-method " + opts.group_method + " --group " + group_col + 
 							" --valid " + portion_valid + " --train " + portion_train + " --rand " + seed);
 		} else 
 		{			
@@ -457,7 +458,7 @@ public class InteractionTreeLearnerGAMMC {
 			double portion_zero_valid = zero_valid_size / (double) zero_size;
 			double portion_nonzero_valid = nonzero_valid_size / (double) nonzero_size;
 			
-			runProcess(dir, RND, "--input " + dtaAG + " --stem fir --group-method 1 --group " + group_col + " --target " + tar_col +
+			runProcess(dir, RND, "--input " + dtaAG + " --stem fir --group-method " + opts.group_method + " --group " + group_col + " --target " + tar_col +
 					" --valid " + portion_nonzero_valid + " --train " + portion_nonzero_train + 
 					" --valid-zero " + portion_zero_valid + " --train-zero " + portion_zero_train + " --rand " + seed);		
 		}	
@@ -573,7 +574,6 @@ public class InteractionTreeLearnerGAMMC {
 			entry.delete();
 		}
 
-		// TODO: No need to run ag_interactions in fast_interactions
 		//3a. If number of leaves or height limit reached, stop here.
 		if (tree_size_limit_reached)
 		{
@@ -610,29 +610,30 @@ public class InteractionTreeLearnerGAMMC {
 		List<String> candidateFeatureNames = gcret.v1;
 		String candType = gcret.v2; 
 		
-		// TODO: Train parent GAM and child GAMs in parallel
-		// 5. Build a GAM for parent
 		// 5. Prepare train set and valid set for GAM
  		Instances trainSet = InstancesReader.read(ainfo, train, "\t+", true);
 		Instances validSet = InstancesReader.read(ainfo, valid, "\t+", true);
 
-		//timeStamp("Build a GAM for the parent node.");
-		
 		GAMLearner learner = new GAMLearner();
-		Metric metric;
+		PointwiseMetric ptMetric;
 		if(regression == true)
-			metric = new RMSE();
+			ptMetric = new RMSE();
 		else
-			metric = new AUC();
+			ptMetric = new AUC();
 		
 		// We use RMSE or AUC when scorer is not GAUC or NDCG
-		MetricScorer scorer = null;
-		if (opts.metricEval.equals("gauc"))
-			scorer = new GAUCScorer();
-		if (opts.metricEval.equals("ndcg"))
-			scorer = new NDCGScorer(10);
+		ListwiseMetric lMetric = null;
+		if (opts.metricEval.toLowerCase().equals("gauc"))
+			lMetric = new GAUC();
+		if (opts.metricEval.toLowerCase().startsWith("ndcg")) {
+			int k = 4;
+			if (opts.metricEval.contains("@")) {
+				k = Integer.parseInt(opts.metricEval.split("@")[1]);
+			}
+			lMetric = new NDCG(k);
+		}
 		
-		learner.setMetric(metric);
+		learner.setMetric(ptMetric);
 		learner.setLearningRate(0.01);
 		learner.setBaggingIters(0);
 
@@ -661,12 +662,12 @@ public class InteractionTreeLearnerGAMMC {
 			Feature feature = Feature.read(tmpDir + File.separator + "AG_PLOTS" + File.separator + key + ".effect.txt");
 			candidateFeatures.add(feature);
 		}
-
-		// 8. Evaluate splits with parent GAM and child GAMs
+		
+		// 8.1 Build a parent GAM and child GAMs in parallel
 		timeStamp("Evaluate splits.");
 		int bestAtt = -1;
 		double bestSplit = -1;
-		double bestScore = metric.worstValue();
+		double bestScore = worstValue(ptMetric, lMetric);
 		
 		List<Future<GAMLearningResult>> results = new ArrayList<>();
 		ExecutorService executor = Executors.newFixedThreadPool(opts.nSplitEvaluation);
@@ -679,8 +680,8 @@ public class InteractionTreeLearnerGAMMC {
 					trainSet, 
 					validSet, 
 					learner, 
-					metric,
-					scorer
+					ptMetric,
+					lMetric
 					);
 			Future<GAMLearningResult> result = executor.submit(task);
 			results.add(result);
@@ -699,8 +700,8 @@ public class InteractionTreeLearnerGAMMC {
 						trainSet, 
 						validSet, 
 						learner, 
-						metric, 
-						scorer,
+						ptMetric, 
+						lMetric,
 						attIndex, 
 						featureName, 
 						split, 
@@ -712,7 +713,8 @@ public class InteractionTreeLearnerGAMMC {
 		}
 		executor.shutdown();
 		while (! executor.isTerminated());
-		
+
+		// 8.2 Evaluate all splits and select the best one
 		double parentScore = Double.NaN;
 		for (Future<GAMLearningResult> result : results) {
 			if (result.get().isParent) {
@@ -720,17 +722,17 @@ public class InteractionTreeLearnerGAMMC {
 			} else {
 				timeStamp(String.format("Evaluating feature %s split %f is terminated with score %f", 
 						ainfo.idToName(result.get().attIndex), result.get().splitPoint, result.get().splitScore));
-				if (metric.isFirstBetter(result.get().splitScore, bestScore)) {
+				if (isFirstBetter(result.get().splitScore, bestScore, ptMetric, lMetric)) {
 					bestAtt = result.get().attIndex;
 					bestSplit = result.get().splitPoint;
 					bestScore = result.get().splitScore;
 				}
 			}
 		}
-		if (scorer == null) {
-			sb.append("Parent " + metric.toString() + ": " + parentScore + "\n");
+		if (lMetric == null) {
+			sb.append("Parent " + ptMetric.toString() + ": " + parentScore + "\n");
 		} else {
-			sb.append("Parent " + scorer.name() + ": " + parentScore + "\n");
+			sb.append("Parent " + lMetric.name() + ": " + parentScore + "\n");
 		}
 		PrintWriter out = new PrintWriter(tmpDir + File.separator + "parent.txt");
 		out.println(parentScore);
@@ -740,13 +742,13 @@ public class InteractionTreeLearnerGAMMC {
 
 		//9. Final output: best split and its visualization
 		if (bestAtt >= 0) {
-			if (scorer == null) {
-				sb.append("Best " + metric + ": " + bestScore + "\n");
+			if (lMetric == null) {
+				sb.append("Best " + ptMetric + ": " + bestScore + "\n");
 			} else {
-				sb.append("Best " + scorer.name() + ": " + bestScore + "\n");
+				sb.append("Best " + lMetric.name() + ": " + bestScore + "\n");
 			}
 			
-			if (metric.isFirstBetter(bestScore, parentScore)) {
+			if (isFirstBetter(bestScore, parentScore, ptMetric, lMetric)) {
 				sb.append("Best feature: " + ainfo.attributes.get(bestAtt).getName() + "\n");
 				sb.append("Best split: " + bestSplit + "\n");
 				if(candType.compareTo("w") == 0)
@@ -798,6 +800,22 @@ public class InteractionTreeLearnerGAMMC {
 		}		
 	}
 	
+	public boolean isFirstBetter(double a, double b, PointwiseMetric ptMetric, ListwiseMetric lMetric) {
+		if (lMetric == null) {
+			return ptMetric.isFirstBetter(a, b);
+		} else {
+			return lMetric.isFirstBetter(a, b);
+		}
+	}
+	
+	public double worstValue(PointwiseMetric ptMetric, ListwiseMetric lMetric) {
+		if (lMetric == null) {
+			return ptMetric.worstValue();
+		} else {
+			return lMetric.worstValue();
+		}
+	}
+	
 	private void visAllEffectPlots(
 			String tmpDir, 
 			File dir, 
@@ -822,8 +840,8 @@ public class InteractionTreeLearnerGAMMC {
 			Instances trainSet, 
 			Instances validSet,
 			GAMLearner learner, 
-			Metric metric, 
-			MetricScorer scorer,
+			PointwiseMetric ptMetric, 
+			ListwiseMetric lMetric,
 			int attIndex, 
 			FeatureSplit split, 
 			double splitPoint
@@ -883,7 +901,7 @@ public class InteractionTreeLearnerGAMMC {
 		}
 		
 		double splitScore = Double.NaN;
-		if (scorer == null) {
+		if (lMetric == null) {
 			int vNo = 0;
 			int actual_valid_size = validLeft.size() + validRight.size();
 			double[] targets = new double[actual_valid_size];
@@ -905,7 +923,7 @@ public class InteractionTreeLearnerGAMMC {
 				vNo++;
 			}
 			
-			splitScore = metric.eval(preds, targets, weights);
+			splitScore = ptMetric.eval(preds, targets, weights);
 		} else {
 			Map<String, RankList> rankLists = new HashMap<String, RankList>();
 			
@@ -934,16 +952,9 @@ public class InteractionTreeLearnerGAMMC {
 			
 			for (RankList rankList : rankLists.values()) {
 				rankList.setWeight();
-				
-				// TODO: Remove
-				if (Math.abs(rankList.getWeight() - 1.) > Math.pow(10, -10)) {
-					System.err.println("InteractionTreeLearnerGAMMC TODO");
-					System.exit(1);
-				}
 			}
-			splitScore = scorer.score(rankLists);
+			splitScore = lMetric.score(rankLists);
 			
-			// TODO: Remove
 			double avgSize = 0.;
 			for (RankList rankList : rankLists.values())
 				avgSize += rankList.size();
@@ -964,7 +975,7 @@ public class InteractionTreeLearnerGAMMC {
 	}
 	
 	protected double evaluateSplit(String tmpDir, Instances trainSet, Instances validSet,
-			GAMLearner learner, Metric metric, int attIndex, FeatureSplit split, double splitPoint) throws OutOfMemoryError {
+			GAMLearner learner, PointwiseMetric ptMetric, int attIndex, FeatureSplit split, double splitPoint) throws OutOfMemoryError {
 		int attrN = ainfo.attributes.size();
 		int vNo;
 		PrintWriter out;
@@ -1032,7 +1043,7 @@ public class InteractionTreeLearnerGAMMC {
 			vNo++;
 		}
 
-		double splitScore = metric.eval(preds, targets, weights);
+		double splitScore = ptMetric.eval(preds, targets, weights);
 
 		try {
 			out = new PrintWriter(tmpDir + File.separator + "split_" + split.feature.name + "_" + splitPoint + ".txt");

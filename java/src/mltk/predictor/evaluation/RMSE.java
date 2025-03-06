@@ -10,7 +10,7 @@ import mltk.core.Pointers;
  * @author Yin Lou, modified by Xiaojie Wang
  *
  */
-public class RMSE extends Metric {
+public class RMSE extends PointwiseMetric {
 
 	/**
 	 * Constructor.

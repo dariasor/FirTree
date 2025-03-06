@@ -3,21 +3,19 @@ package firtree;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import firtree.metric.GAUCScorer;
-import firtree.metric.MetricScorer;
-import firtree.metric.NDCGScorer;
+import firtree.metric.GAUC;
+import firtree.metric.ListwiseMetric;
+import firtree.metric.NDCG;
 import firtree.utilities.FileUtils;
 import firtree.utilities.Instance;
 import firtree.utilities.RankList;
@@ -62,6 +60,9 @@ public class CoorAscentOnLeaves {
 		@Argument(name = "-i", description = "Initialize model parameters by OLS or an existing model")
 		String modelInitial = "";
 
+		@Argument(name = "-n", description = "Require nonnegative parameters. (true|false).  Default false")
+		boolean paramNonnegative = false;
+
 		// This argument comes from InteractionTreeLearnerGAMMC
 		@Argument(name = "-c", description = "(gauc|ndcg) - metric to optimize (default: gauc)")
 		String metricStr = "gauc";
@@ -105,6 +106,8 @@ public class CoorAscentOnLeaves {
 		
 		// Load attribute file
 		AttrInfo ainfo = AttributesReader.read(opts.attPath);
+
+		//boolean nonNegative = opts.paramNonnegative;
 		
 		// Load tree structure and initial parameter values
 		FirTree model = new FirTree(ainfo, opts.logPath, opts.polyDegree, opts.modelPrefix);
@@ -123,25 +126,25 @@ public class CoorAscentOnLeaves {
 		// Load training data
 		Map<String, RankList> rankLists = loadRankList(opts, ainfo, model);
 
-		MetricScorer scorer;
+		ListwiseMetric metric;
 		if (opts.metricStr.equals("gauc")) {
-			scorer = new GAUCScorer();
+			metric = new GAUC();
 		} else {
 			int k = 4;
 			if (opts.metricStr.contains("@")) {
 				k = Integer.parseInt(opts.metricStr.split("@")[1]);
 			}
-			scorer = new NDCGScorer(k);
+			metric = new NDCG(k);
 		}
 
 		if (opts.algorithm.equals("params")) {
 			timeStamp("Tune values of model parameters");
 			// Tune parameter values of leaf nodes of type MODEL
-			tuneParams(opts, model, rankLists, scorer);
+			tuneParams(opts, model, rankLists, metric, opts.paramNonnegative);
 		} else if (opts.algorithm.equals("minmax")) {
 			timeStamp("Tune min and max values of features");
 			// Tune min and max values of features
-			tuneMinMax(opts, model, rankLists, scorer);
+			tuneMinMax(opts, model, rankLists, metric);
 		}
 		
 		long end = System.currentTimeMillis();
@@ -156,7 +159,7 @@ public class CoorAscentOnLeaves {
 			Options opts,
 			FirTree model, 
 			Map<String, RankList> rankLists,
-			MetricScorer scorer
+			ListwiseMetric metric
 			) throws Exception {
 		timeStamp("Start to tune min and max values");
 		boolean verbose = false; // Print debugging information, which is verbose
@@ -169,9 +172,9 @@ public class CoorAscentOnLeaves {
 		int nIter = 0;
 		while (true) {
 			// Reset cached predictions helps prevent numerical issues 
-			double scoreTrain = getScore(model, rankLists, scorer);
+			double scoreTrain = getScore(model, rankLists, metric);
 			timeStamp(String.format("Training %s is %f at the start of iteration %d", 
-					scorer.name(), scoreTrain, nIter));
+					metric.name(), scoreTrain, nIter));
 			//System.exit(0);
 			
 			double startScoreTrain = scoreTrain;
@@ -213,10 +216,10 @@ public class CoorAscentOnLeaves {
 					if (correct) {
 						// This code snippet is time-consuming
 						model.setMinValue(activeNode, activeAtt, minDelta);
-						scoreTrain = getScore(model, rankLists, scorer);
+						scoreTrain = getScore(model, rankLists, metric);
 					} else {
 						scoreTrain = getScore(
-								model, rankLists, scorer, activeNode, activeAtt, minDelta, "min");
+								model, rankLists, metric, activeNode, activeAtt, minDelta, "min");
 					}
 					//*/ Ablative Debug End
 					///*
@@ -240,14 +243,14 @@ public class CoorAscentOnLeaves {
 				if (true) {
 					// This code snippet is time-consuming
 					model.setMinValue(activeNode, activeAtt, minDelta);
-					scoreTrain = getScore(model, rankLists, scorer);
+					scoreTrain = getScore(model, rankLists, metric);
 				} else {
 					scoreTrain = getScore(
-							model, rankLists, scorer, activeNode, activeAtt, minDelta, "min");
+							model, rankLists, metric, activeNode, activeAtt, minDelta, "min");
 				}
 				if (Math.abs(scoreTrain - bestScoreTrain) > tolerance) {
 					System.err.printf("%s: estimated %f v.s. real %f if setting min to %f\n",
-							scorer.name(), bestScoreTrain, scoreTrain, bestMin);
+							metric.name(), bestScoreTrain, scoreTrain, bestMin);
 					System.exit(1);
 				}
 				//*/ Ablative Debug End
@@ -270,10 +273,10 @@ public class CoorAscentOnLeaves {
 					if (correct) {
 						// This code snippet is time-consuming
 						model.setMaxValue(activeNode, activeAtt, maxDelta);
-						scoreTrain = getScore(model, rankLists, scorer);
+						scoreTrain = getScore(model, rankLists, metric);
 					} else {
 						scoreTrain = getScore(
-								model, rankLists, scorer, activeNode, activeAtt, maxDelta, "max");
+								model, rankLists, metric, activeNode, activeAtt, maxDelta, "max");
 					}
 					//*/ Ablative Debug End
 					if (verbose && false) {
@@ -296,14 +299,14 @@ public class CoorAscentOnLeaves {
 				if (true) {
 					// This code snippet is time-consuming
 					model.setMaxValue(activeNode, activeAtt, maxDelta);
-					scoreTrain = getScore(model, rankLists, scorer);
+					scoreTrain = getScore(model, rankLists, metric);
 				} else {
 					scoreTrain = getScore(
-							model, rankLists, scorer, activeNode, activeAtt, maxDelta, "max");
+							model, rankLists, metric, activeNode, activeAtt, maxDelta, "max");
 				}
 				if (Math.abs(scoreTrain - bestScoreTrain) > 5 * Math.pow(10, -3)) {
 					System.err.printf("%s: estimated %f v.s. real %f if setting min to %f\n",
-							scorer.name(), bestScoreTrain, scoreTrain, bestMax);
+							metric.name(), bestScoreTrain, scoreTrain, bestMax);
 					System.exit(1);
 				}
 				//*/ Ablative Debug End
@@ -321,7 +324,7 @@ public class CoorAscentOnLeaves {
 			
 			double gainTrain = scoreTrain - startScoreTrain;
 			timeStamp(String.format("  Increase training %s by %f (from %f to %f)", 
-					scorer.name(), gainTrain, startScoreTrain, scoreTrain));
+					metric.name(), gainTrain, startScoreTrain, scoreTrain));
 			nIter += 1;
 			if (gainTrain < minGainBound) {
 				break;
@@ -335,7 +338,7 @@ public class CoorAscentOnLeaves {
 	protected static double getScore(
 			FirTree model, 
 			Map<String, RankList> rankLists, 
-			MetricScorer scorer,
+			ListwiseMetric metric,
 			int activeNode,
 			int activeAtt,
 			double delta,
@@ -363,7 +366,7 @@ public class CoorAscentOnLeaves {
 					*/// Ablative Debug End
 				}
 				// Set is easily forgot
-				rankList.setScore(scorer.score(rankList));
+				rankList.setScore(metric.score(rankList));
 			}
 			double score = rankList.getScore();
 			if (! Double.isNaN(score)) {
@@ -395,10 +398,14 @@ public class CoorAscentOnLeaves {
 			Options opts,
 			FirTree model, 
 			Map<String, RankList> rankLists,
-			MetricScorer scorer
+			ListwiseMetric metric,
+			boolean requireNonnegative
 			) throws Exception {
 		timeStamp("Start to tune parameters of linear models");
-		
+		if (requireNonnegative) {
+			timeStamp("Require nonnegative parameters");
+		}
+
 		// Create log directory and delete all previous log files
 		String dir = Paths.get(opts.logPath).getParent().toString();
 		String logPath = dir + "/CA_" + opts.modelPrefix + "_y" + opts.polyDegree + "_PLOTS";
@@ -414,9 +421,9 @@ public class CoorAscentOnLeaves {
 		int nIter = 0;
 		while (true) {
 			// Reset cached predictions helps prevent numerical issues 
-			double scoreTrain = getScore(model, rankLists, scorer);
+			double scoreTrain = getScore(model, rankLists, metric);
 			System.out.printf("Training %s is %f at the start of iteration %d\n", 
-					scorer.name(), scoreTrain, nIter);
+					metric.name(), scoreTrain, nIter);
 			//System.exit(0);
 
 			double startScoreTrain = scoreTrain;
@@ -433,7 +440,7 @@ public class CoorAscentOnLeaves {
 				double bestScoreTrain = scoreTrain;
 				
 				// Log parameter value and score
-				String strToWrite = String.format("Step\tValue\t%s\n", scorer.name());
+				String strToWrite = String.format("Step\tValue\t%s\n", metric.name());
 				String strBest = String.format("%d\t%s\t%s\n", 0, origParamValue, scoreTrain);
 				strToWrite += strBest;
 				
@@ -443,11 +450,11 @@ public class CoorAscentOnLeaves {
 					
 					///* Ablative Debug Start
 					scoreTrain = getScore(
-							model, rankLists, scorer, activeNode, activeParam, paramDelta);
+							model, rankLists, metric, activeNode, activeParam, paramDelta);
 					//*/
 					/*// This code snippet is time-consuming
 					model.setParamValue(activeNode, activeParam, paramDelta);
-					scoreTrain = getScore(model, rankLists, scorer);
+					scoreTrain = getScore(model, rankLists, metric);
 					*/// Ablative Debug End
 					
 					// Log parameter value and score
@@ -458,11 +465,14 @@ public class CoorAscentOnLeaves {
 							scoreTrain
 							);
 					strToWrite += strCur;
-					
-					if (scoreTrain > bestScoreTrain) {
-						bestParamValue = model.getParamValue(activeNode, activeParam);
-						bestScoreTrain = scoreTrain;
-						strBest = strCur;
+					// if we are improving the score, or the best parameter value is negative
+					// update the parameter (if needed conditioned on nonnegativity)
+					if (scoreTrain > bestScoreTrain || (requireNonnegative && bestParamValue < 0)) {
+						if ((!requireNonnegative) || model.getParamValue(activeNode, activeParam) >= 0) {
+							bestParamValue = model.getParamValue(activeNode, activeParam);
+							bestScoreTrain = scoreTrain;
+							strBest = strCur;
+						}
 					}
 					posDelta *= deltaBase;
 				}
@@ -477,11 +487,11 @@ public class CoorAscentOnLeaves {
 					
 					///* Ablative Debug Start
 					scoreTrain = getScore(
-							model, rankLists, scorer, activeNode, activeParam, paramDelta);
+							model, rankLists, metric, activeNode, activeParam, paramDelta);
 					//*/
 					/*// This code snippet is time-consuming
 					model.setParamValue(activeNode, activeParam, paramDelta);
-					scoreTrain = getScore(model, rankLists, scorer);
+					scoreTrain = getScore(model, rankLists, metric);
 					*/// Ablative Debug End
 					
 					// Log parameter value and score
@@ -493,10 +503,12 @@ public class CoorAscentOnLeaves {
 							);
 					strToWrite += strCur;
 					
-					if (scoreTrain > bestScoreTrain) {
-						bestParamValue = model.getParamValue(activeNode, activeParam);
-						bestScoreTrain = scoreTrain;
-						strBest = strCur;
+					if (scoreTrain > bestScoreTrain || (requireNonnegative && bestParamValue < 0)) {
+						if  ((!requireNonnegative) || model.getParamValue(activeNode, activeParam) >= 0) {
+							bestParamValue = model.getParamValue(activeNode, activeParam);
+							bestScoreTrain = scoreTrain;
+							strBest = strCur;
+						}
 					}
 					negDelta *= deltaBase;
 				}
@@ -508,15 +520,15 @@ public class CoorAscentOnLeaves {
 
 				///* Ablative Debug Start
 				scoreTrain = getScore(
-						model, rankLists, scorer, activeNode, activeParam, paramDelta);
+						model, rankLists, metric, activeNode, activeParam, paramDelta);
 				//*/
 				/*// This code snippet is time-consuming
 				model.setParamValue(activeNode, activeParam, paramDelta);
-				scoreTrain = getScore(model, rankLists, scorer);
+				scoreTrain = getScore(model, rankLists, metric);
 				*/// Ablative Debug End
 				
 				System.out.printf("\t%s:%f orig:%+.12f best:%+.12f (%02d, %02d)\n", 
-						scorer.name(), scoreTrain, 
+						metric.name(), scoreTrain, 
 						origParamValue, bestParamValue, 
 						activeNode, activeParam
 						);
@@ -536,7 +548,7 @@ public class CoorAscentOnLeaves {
 
 			double gainTrain = scoreTrain - startScoreTrain;
 			System.out.printf("\tIncrease training %s by %f (from %f to %f)\n", 
-					scorer.name(), gainTrain, startScoreTrain, scoreTrain);
+					metric.name(), gainTrain, startScoreTrain, scoreTrain);
 			nIter += 1;
 			if (gainTrain < minGainTrain) {
 				break;
@@ -550,7 +562,7 @@ public class CoorAscentOnLeaves {
 	protected static double getScore(
 			FirTree model, 
 			Map<String, RankList> rankLists, 
-			MetricScorer scorer,
+			ListwiseMetric metric,
 			int activeNode,
 			int activeParam,
 			double paramDelta
@@ -570,7 +582,7 @@ public class CoorAscentOnLeaves {
 					*/// Ablative Debug End
 				}
 				// Set is easily forgot
-				rankList.setScore(scorer.score(rankList));
+				rankList.setScore(metric.score(rankList));
 			}
 			double score = rankList.getScore();
 			if (! Double.isNaN(score)) {
@@ -585,7 +597,7 @@ public class CoorAscentOnLeaves {
 	protected static double getScore(
 			FirTree model, 
 			Map<String, RankList> rankLists, 
-			MetricScorer scorer
+			ListwiseMetric metric
 			) {
 		double total = 0;
 		double weight = 0;
@@ -594,7 +606,7 @@ public class CoorAscentOnLeaves {
 				model.predict(instance);
 			}
 			// Set is easily forgot
-			rankList.setScore(scorer.score(rankList));
+			rankList.setScore(metric.score(rankList));
 			double score = rankList.getScore();
 			if (! Double.isNaN(score)) {
 				// If tp_fn and fp_tn are never 0 when computing AUC
@@ -640,6 +652,7 @@ public class CoorAscentOnLeaves {
 				nameToId.put(ainfo.idToName(attIdList.get(i)), i);
 			}
 			BufferedReader br = new BufferedReader(new FileReader(dataPath));
+			int i = 0;
 			for (String line = br.readLine(); line != null; line = br.readLine()) {
 				String[] data = line.split("\t");
 				Instance instance = new Instance(
@@ -669,7 +682,8 @@ public class CoorAscentOnLeaves {
 					System.exit(1);
 				}
 				
-				model.addAttIdToValSet(attIdList, data);
+				model.addAttIdToValSet(attIdList, data, dataPath, i);
+				i += 1;
 			}
 			br.close();
 		}

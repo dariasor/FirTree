@@ -12,7 +12,6 @@ import mltk.core.Attribute;
 import mltk.core.Instances;
 import mltk.core.NominalAttribute;
 import mltk.predictor.Learner;
-import mltk.predictor.glm.GLM;
 import mltk.util.ArrayUtils;
 import mltk.util.MathUtils;
 import mltk.util.OptimUtils;

@@ -8,7 +8,7 @@ import mltk.core.Instance;
 import mltk.core.Instances;
 import mltk.core.Pointer;
 import mltk.core.Pointers;
-import mltk.predictor.evaluation.Metric;
+import mltk.predictor.evaluation.PointwiseMetric;
 import mltk.util.Random;
 
 /**
@@ -150,7 +150,7 @@ public class Bagging {
 	 * @param p the performance vector for each iteration of bagging.
 	 * @return <code>true</code> if the bagging converges.
 	 */
-	public static boolean analyzeBagging(double[] p, Metric metric) {
+	public static boolean analyzeBagging(double[] p, PointwiseMetric metric) {
 		final int bn = p.length;
 		if (p.length <= 20) {
 			return false;
@@ -183,7 +183,7 @@ public class Bagging {
 	 * @param p the performance list for each iteration of bagging.
 	 * @return <code>true</code> if the bagging converges.
 	 */
-	public static boolean analyzeBagging(List<Double> p, Metric metric) {
+	public static boolean analyzeBagging(List<Double> p, PointwiseMetric metric) {
 		if (p.size() <= 20) {
 			return false;
 		}

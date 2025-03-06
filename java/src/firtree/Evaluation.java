@@ -6,9 +6,9 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
-import firtree.metric.GAUCScorer;
-import firtree.metric.MetricScorer;
-import firtree.metric.NDCGScorer;
+import firtree.metric.GAUC;
+import firtree.metric.ListwiseMetric;
+import firtree.metric.NDCG;
 import firtree.utilities.Instance;
 import firtree.utilities.RankList;
 import mltk.cmdline.Argument;
@@ -91,20 +91,20 @@ public class Evaluation {
 			rankList.setWeight();
 
 		//test_calculate_ndcg_whenUnweightedData_thenAccurateNDCG(rankLists);
-		MetricScorer scorer;
+		ListwiseMetric metric;
 		if (opts.metricStr.equals("gauc"))
-			scorer = new GAUCScorer();
+			metric = new GAUC();
 		else
-			scorer = new NDCGScorer(10);
-		double score = scorer.score(rankLists);
+			metric = new NDCG(10);
+		double score = metric.score(rankLists);
 		System.out.printf("Test %s is %.4f given predictions in %s\n", 
-				scorer.name(), score, opts.outputPath);
+				metric.name(), score, opts.outputPath);
 	}
 	
 	static void test_calculate_ndcg_whenUnweightedData_thenAccurateNDCG(Map<String, RankList> rankLists) {
-		NDCGScorer.setGainType("linear");
-		NDCGScorer scorer = new NDCGScorer(10);
-		scorer.setK(100);
+		NDCG metric = new NDCG(10);
+		metric.setGainType("linear");
+		metric.setK(100);
 		Map<String, Double> trueNDCG = new HashMap<String, Double>();
 		trueNDCG.put("0", 0.5523531026111766);
 		trueNDCG.put("1", 0.5325611891991362);
@@ -116,7 +116,7 @@ public class Evaluation {
 		trueNDCG.put("7", 0.895930857984812);
 		for (RankList rankList : rankLists.values()) {
 			String groupId = rankList.getGroupId();
-			double score = scorer.score(rankList);
+			double score = metric.score(rankList);
 			if (Math.abs(score - trueNDCG.get(groupId)) > Math.pow(10, -10)) {
 				System.err.printf("%s fails due to %.10f (pred) != %.10f (true)\n", 
 						groupId, score, trueNDCG.get(groupId));

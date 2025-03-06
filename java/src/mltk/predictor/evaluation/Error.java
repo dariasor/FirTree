@@ -9,7 +9,7 @@ import mltk.core.Pointers;
  * @author Yin Lou, modified by Xiaojie Wang
  *
  */
-public class Error extends Metric {
+public class Error extends PointwiseMetric {
 
 	/**
 	 * Constructor.

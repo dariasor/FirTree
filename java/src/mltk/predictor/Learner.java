@@ -11,7 +11,7 @@ import mltk.core.Instances;
 import mltk.core.Pointers;
 import mltk.core.SparseVector;
 import mltk.predictor.evaluation.Error;
-import mltk.predictor.evaluation.Metric;
+import mltk.predictor.evaluation.PointwiseMetric;
 import mltk.predictor.evaluation.RMSE;
 import mltk.util.MathUtils;
 import mltk.util.StatUtils;
@@ -71,8 +71,8 @@ public abstract class Learner {
 			throw new IllegalArgumentException("Invalid Task value: " + task);
 		}
 		
-		public Metric getDefaultMetric() {
-			Metric metric = null;
+		public PointwiseMetric getDefaultMetric() {
+			PointwiseMetric metric = null;
 			switch (this) {
 				case CLASSIFICATION:
 					metric = new Error();

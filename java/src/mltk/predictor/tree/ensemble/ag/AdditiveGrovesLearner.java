@@ -13,7 +13,7 @@ import mltk.core.io.InstancesReader;
 import mltk.predictor.Bagging;
 import mltk.predictor.Learner;
 import mltk.predictor.evaluation.AUC;
-import mltk.predictor.evaluation.Metric;
+import mltk.predictor.evaluation.PointwiseMetric;
 import mltk.predictor.evaluation.RMSE;
 import mltk.predictor.io.PredictorWriter;
 import mltk.predictor.tree.RegressionTree;
@@ -31,17 +31,17 @@ import mltk.util.tuple.IntPair;
  * Conference on Machine Learning (ECML)</i>, Warsaw, Poland, 2007.
  * </p>
  *
- * @author Yin Lou
+ * @author Yin Lou, modified by Xiaojie Wang
  *
  */
 public class AdditiveGrovesLearner extends Learner {
 
 	class PerformanceMatrix {
 
-		Metric metric;
+		PointwiseMetric metric;
 		double[][][] perf;
 
-		PerformanceMatrix(int maxNumTrees, int numAlphas, int baggingIters, Metric metric) {
+		PerformanceMatrix(int maxNumTrees, int numAlphas, int baggingIters, PointwiseMetric metric) {
 			perf = new double[maxNumTrees][numAlphas][baggingIters];
 			this.metric = metric;
 		}
@@ -164,7 +164,7 @@ public class AdditiveGrovesLearner extends Learner {
 	private int numTrees;
 	private int baggingIters;
 	private double minAlpha;
-	private Metric metric;
+	private PointwiseMetric metric;
 
 	/**
 	 * Constructor.
@@ -182,7 +182,7 @@ public class AdditiveGrovesLearner extends Learner {
 	 * 
 	 * @return the metric.
 	 */
-	public Metric getMetric() {
+	public PointwiseMetric getMetric() {
 		return metric;
 	}
 
@@ -192,7 +192,7 @@ public class AdditiveGrovesLearner extends Learner {
 	 * 
 	 * @param metric the metric.
 	 */
-	public void setMetric(Metric metric) {
+	public void setMetric(PointwiseMetric metric) {
 		if (metric instanceof RMSE || metric instanceof AUC) {
 			this.metric = metric;
 		}
@@ -666,7 +666,7 @@ public class AdditiveGrovesLearner extends Learner {
 	public static void main(String[] args) throws Exception {
 		Options opts = new Options();
 		CmdLineParser parser = new CmdLineParser(AdditiveGrovesLearner.class, opts);
-		Metric metric = null;
+		PointwiseMetric metric = null;
 		try {
 			parser.parse(args);
 			if ("rmse".startsWith(opts.metric)) {
